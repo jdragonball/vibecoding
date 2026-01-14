@@ -13,7 +13,7 @@
   }
 
   // 상태 관리
-  let currentView: 'chat' | 'saju' | 'fortune' = 'chat';
+  let currentView: 'chat' | 'saju' | 'fortune' | 'dashboard' | 'calendar' = 'chat';
   let isLoading = false;
   let error = '';
   let showSidebar = false;
@@ -62,6 +62,69 @@
     luckyNumber: number;
     luckyDirection: string;
   } | null = null;
+
+  // 대시보드 관련
+  let dashboard: {
+    userName: string;
+    birthInfo: string;
+    gender: string;
+    pillars: { year: string; month: string; day: string; hour: string };
+    animal: string;
+    elements: { wood: number; fire: number; earth: number; metal: number; water: number };
+    strength: {
+      ratio: number;
+      label: string;
+      isStrong: boolean;
+      description: string;
+      dayElement: string;
+      dayElementFull: string;
+      support: number;
+      suppress: number;
+    };
+    yongshin: {
+      kind: string;
+      roles: {
+        yong: { element: string | null; name: string; label: string };
+        hee: { element: string | null; name: string; label: string };
+        ki: { element: string | null; name: string; label: string };
+        gu: { element: string | null; name: string; label: string };
+        han: { element: string | null; name: string; label: string };
+      };
+    };
+    relations: Array<{
+      category: string;
+      title: string;
+      description: string;
+      element: string | null;
+      elementName: string;
+      pillars: Array<{ key: string; label: string; value: string; kind: string }>;
+    }>;
+    todayFortune: {
+      date: string;
+      pillar: string;
+      pillarElement: { stem: string; branch: string };
+      scores: { overall: number; love: number; money: number; health: number; work: number };
+      lucky: { color: string; number: number; direction: string };
+      mood: { level: number; label: string; emoji: string; description: string };
+      advice: string;
+    };
+  } | null = null;
+
+  // 달력 관련
+  let calendarData: {
+    year: number;
+    month: number;
+    firstDayOfWeek: number;
+    daysInMonth: number;
+    fortunes: Array<{
+      day: number;
+      date: string;
+      todayPillar: string;
+      overallScore: number;
+      luckyColor: string;
+    }>;
+  } | null = null;
+  let selectedCalendarDate: string | null = null;
 
   onMount(async () => {
     await loadSajuInfo();
@@ -323,6 +386,95 @@
     }
   }
 
+  async function loadDashboard() {
+    if (!hasUser) {
+      error = '먼저 사주를 등록해주세요.';
+      currentView = 'saju';
+      return;
+    }
+
+    isLoading = true;
+    error = '';
+
+    try {
+      const res = await fetch('/api/dashboard');
+      const data = await res.json();
+
+      if (data.success) {
+        dashboard = data.dashboard;
+      } else {
+        error = data.message || '대시보드를 불러오는 데 실패했습니다.';
+      }
+    } catch (e) {
+      error = '서버 오류가 발생했습니다.';
+    } finally {
+      isLoading = false;
+    }
+  }
+
+  async function loadCalendar(year?: number, month?: number) {
+    if (!hasUser) {
+      error = '먼저 사주를 등록해주세요.';
+      currentView = 'saju';
+      return;
+    }
+
+    isLoading = true;
+    error = '';
+
+    try {
+      const now = new Date();
+      const y = year ?? now.getFullYear();
+      const m = month ?? now.getMonth() + 1;
+
+      const res = await fetch(`/api/calendar?year=${y}&month=${m}`);
+      const data = await res.json();
+
+      if (data.success) {
+        calendarData = data.calendar;
+      } else {
+        error = data.message || '달력을 불러오는 데 실패했습니다.';
+      }
+    } catch (e) {
+      error = '서버 오류가 발생했습니다.';
+    } finally {
+      isLoading = false;
+    }
+  }
+
+  function prevMonth() {
+    if (!calendarData) return;
+    let y = calendarData.year;
+    let m = calendarData.month - 1;
+    if (m < 1) {
+      m = 12;
+      y--;
+    }
+    loadCalendar(y, m);
+  }
+
+  function nextMonth() {
+    if (!calendarData) return;
+    let y = calendarData.year;
+    let m = calendarData.month + 1;
+    if (m > 12) {
+      m = 1;
+      y++;
+    }
+    loadCalendar(y, m);
+  }
+
+  function getFortuneForDay(day: number) {
+    return calendarData?.fortunes.find(f => f.day === day);
+  }
+
+  function getDayScoreColor(score: number): string {
+    if (score >= 80) return '#10b981';
+    if (score >= 60) return '#8b5cf6';
+    if (score >= 40) return '#f59e0b';
+    return '#ef4444';
+  }
+
   function scrollToBottom() {
     setTimeout(() => {
       if (chatContainer) {
@@ -419,21 +571,35 @@
           class:active={currentView === 'chat'}
           onclick={() => currentView = 'chat'}
         >
-          💬 채팅
+          💬
+        </button>
+        <button
+          class="nav-btn"
+          class:active={currentView === 'dashboard'}
+          onclick={() => { currentView = 'dashboard'; loadDashboard(); }}
+        >
+          📊
+        </button>
+        <button
+          class="nav-btn"
+          class:active={currentView === 'calendar'}
+          onclick={() => { currentView = 'calendar'; loadCalendar(); }}
+        >
+          📅
         </button>
         <button
           class="nav-btn"
           class:active={currentView === 'fortune'}
           onclick={() => { currentView = 'fortune'; loadFortune(); }}
         >
-          ✨ 운세
+          ✨
         </button>
         <button
           class="nav-btn"
           class:active={currentView === 'saju'}
           onclick={() => currentView = 'saju'}
         >
-          📋 사주
+          📋
         </button>
       </nav>
     </header>
@@ -685,6 +851,273 @@
                   {/each}
                 </div>
               </div>
+            </div>
+          {/if}
+        </div>
+      {/if}
+
+      <!-- 대시보드 뷰 -->
+      {#if currentView === 'dashboard'}
+        <div class="dashboard-view">
+          {#if isLoading}
+            <div class="loading-spinner">
+              <div class="spinner"></div>
+              <p>대시보드를 불러오는 중...</p>
+            </div>
+          {:else if dashboard}
+            <!-- 오늘의 나 - 사주몽 캐릭터 -->
+            <div class="today-hero-card">
+              <div class="hero-date">{dashboard.todayFortune.date}</div>
+
+              <div class="sajumong-character" data-mood={dashboard.todayFortune.mood.level}>
+                <div class="character-body">
+                  <div class="character-aura" class:glow={dashboard.todayFortune.mood.level >= 4}></div>
+                  <div class="character-face">
+                    <div class="character-eyes">
+                      <div class="eye left" class:sparkle={dashboard.todayFortune.mood.level >= 4} class:sad={dashboard.todayFortune.mood.level <= 2}></div>
+                      <div class="eye right" class:sparkle={dashboard.todayFortune.mood.level >= 4} class:sad={dashboard.todayFortune.mood.level <= 2}></div>
+                    </div>
+                    <div class="character-mouth"
+                      class:happy={dashboard.todayFortune.mood.level >= 4}
+                      class:neutral={dashboard.todayFortune.mood.level === 3}
+                      class:sad={dashboard.todayFortune.mood.level <= 2}
+                    ></div>
+                    {#if dashboard.todayFortune.mood.level <= 2}
+                      <div class="character-sweat"></div>
+                    {/if}
+                  </div>
+                  <div class="character-crystal">🔮</div>
+                </div>
+              </div>
+
+              <div class="hero-mood">
+                <span class="mood-emoji">{dashboard.todayFortune.mood.emoji}</span>
+                <span class="mood-label">{dashboard.todayFortune.mood.label}</span>
+              </div>
+
+              <div class="hero-score">
+                <div class="score-circle" style="--score: {dashboard.todayFortune.scores.overall}">
+                  <svg viewBox="0 0 100 100">
+                    <circle class="score-bg" cx="50" cy="50" r="45"/>
+                    <circle class="score-fill" cx="50" cy="50" r="45"
+                      stroke-dasharray="{dashboard.todayFortune.scores.overall * 2.83} 283"/>
+                  </svg>
+                  <div class="score-text">
+                    <span class="score-number">{dashboard.todayFortune.scores.overall}</span>
+                    <span class="score-unit">점</span>
+                  </div>
+                </div>
+              </div>
+
+              <p class="hero-description">{dashboard.todayFortune.mood.description}</p>
+
+              <div class="hero-pillar">
+                <span class="pillar-label">오늘의 일진</span>
+                <span class="pillar-value">{dashboard.todayFortune.pillar}</span>
+                <span class="pillar-elements">({dashboard.todayFortune.pillarElement.stem}/{dashboard.todayFortune.pillarElement.branch})</span>
+              </div>
+            </div>
+
+            <!-- 오늘의 조언 -->
+            <div class="dashboard-card advice-card">
+              <div class="advice-icon">💬</div>
+              <p class="advice-text">"{dashboard.todayFortune.advice}"</p>
+            </div>
+
+            <!-- 카테고리별 운세 -->
+            <div class="dashboard-card scores-card">
+              <h2>📊 오늘의 운세</h2>
+              <div class="category-scores">
+                {#each [
+                  { label: '총운', score: dashboard.todayFortune.scores.overall, icon: '🔮' },
+                  { label: '애정', score: dashboard.todayFortune.scores.love, icon: '💕' },
+                  { label: '금전', score: dashboard.todayFortune.scores.money, icon: '💰' },
+                  { label: '건강', score: dashboard.todayFortune.scores.health, icon: '💪' },
+                  { label: '직장', score: dashboard.todayFortune.scores.work, icon: '💼' }
+                ] as cat}
+                  <div class="category-item">
+                    <span class="cat-icon">{cat.icon}</span>
+                    <span class="cat-label">{cat.label}</span>
+                    <div class="cat-bar">
+                      <div class="cat-fill" style="width: {cat.score}%; background: {getScoreColor(cat.score)}"></div>
+                    </div>
+                    <span class="cat-score">{cat.score}</span>
+                  </div>
+                {/each}
+              </div>
+            </div>
+
+            <!-- 행운 아이템 -->
+            <div class="dashboard-card lucky-card">
+              <h2>🍀 오늘의 행운</h2>
+              <div class="lucky-grid">
+                <div class="lucky-item-big">
+                  <span class="lucky-icon">🎨</span>
+                  <span class="lucky-label">행운의 색</span>
+                  <span class="lucky-value">{dashboard.todayFortune.lucky.color}</span>
+                </div>
+                <div class="lucky-item-big">
+                  <span class="lucky-icon">🔢</span>
+                  <span class="lucky-label">행운의 숫자</span>
+                  <span class="lucky-value">{dashboard.todayFortune.lucky.number}</span>
+                </div>
+                <div class="lucky-item-big">
+                  <span class="lucky-icon">🧭</span>
+                  <span class="lucky-label">행운의 방향</span>
+                  <span class="lucky-value">{dashboard.todayFortune.lucky.direction}</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- 나의 기운 분석 (축소) -->
+            <div class="dashboard-card strength-card-mini">
+              <h2>⚖️ 나의 기운</h2>
+              <div class="strength-mini-content">
+                <div class="strength-mini-gauge">
+                  <div class="mini-gauge-bar">
+                    <div class="mini-gauge-fill" style="width: {dashboard.strength.ratio}%"></div>
+                    <div class="mini-gauge-marker" style="left: {dashboard.strength.ratio}%"></div>
+                  </div>
+                  <div class="mini-gauge-labels">
+                    <span>신약</span>
+                    <span>신강</span>
+                  </div>
+                </div>
+                <div class="strength-mini-info">
+                  <span class="mini-label">{dashboard.strength.label}</span>
+                  <span class="mini-element">{dashboard.strength.dayElementFull}</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- 용신 요약 -->
+            <div class="dashboard-card yongshin-mini">
+              <h2>🎯 필요한 기운</h2>
+              <div class="yongshin-summary">
+                <div class="yong-item good">
+                  <span class="yong-role">용신</span>
+                  <span class="yong-value">{dashboard.yongshin.roles.yong.name || '없음'}</span>
+                </div>
+                <div class="yong-item good">
+                  <span class="yong-role">희신</span>
+                  <span class="yong-value">{dashboard.yongshin.roles.hee.name || '없음'}</span>
+                </div>
+                <div class="yong-item bad">
+                  <span class="yong-role">기신</span>
+                  <span class="yong-value">{dashboard.yongshin.roles.ki.name || '없음'}</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- 오행 분포 (컴팩트) -->
+            <div class="dashboard-card elements-mini">
+              <h2>🌿 오행 분포</h2>
+              <div class="elements-row">
+                {#each [
+                  { name: '목', value: dashboard.elements.wood, color: '#22c55e' },
+                  { name: '화', value: dashboard.elements.fire, color: '#ef4444' },
+                  { name: '토', value: dashboard.elements.earth, color: '#eab308' },
+                  { name: '금', value: dashboard.elements.metal, color: '#94a3b8' },
+                  { name: '수', value: dashboard.elements.water, color: '#3b82f6' }
+                ] as el}
+                  <div class="element-mini-item">
+                    <div class="element-mini-bar" style="height: {el.value * 15}px; background: {el.color}"></div>
+                    <span class="element-mini-name">{el.name}</span>
+                    <span class="element-mini-count">{el.value}</span>
+                  </div>
+                {/each}
+              </div>
+            </div>
+          {:else}
+            <div class="empty-dashboard">
+              <p>대시보드 정보를 불러올 수 없습니다.</p>
+              <button class="primary-btn" onclick={loadDashboard}>다시 시도</button>
+            </div>
+          {/if}
+        </div>
+      {/if}
+
+      <!-- 달력 뷰 -->
+      {#if currentView === 'calendar'}
+        <div class="calendar-view">
+          {#if isLoading}
+            <div class="loading-spinner">
+              <div class="spinner"></div>
+              <p>달력을 불러오는 중...</p>
+            </div>
+          {:else if calendarData}
+            <div class="calendar-card">
+              <div class="calendar-header">
+                <button class="calendar-nav-btn" onclick={prevMonth}>◀</button>
+                <h2>{calendarData.year}년 {calendarData.month}월</h2>
+                <button class="calendar-nav-btn" onclick={nextMonth}>▶</button>
+              </div>
+
+              <div class="calendar-weekdays">
+                {#each ['일', '월', '화', '수', '목', '금', '토'] as day, i}
+                  <div class="weekday" class:sunday={i === 0} class:saturday={i === 6}>{day}</div>
+                {/each}
+              </div>
+
+              <div class="calendar-days">
+                {#each Array(calendarData.firstDayOfWeek) as _}
+                  <div class="calendar-day empty"></div>
+                {/each}
+                {#each Array(calendarData.daysInMonth) as _, i}
+                  {@const day = i + 1}
+                  {@const fortune = getFortuneForDay(day)}
+                  {@const dayOfWeek = (calendarData.firstDayOfWeek + i) % 7}
+                  {@const isToday = new Date().getFullYear() === calendarData.year &&
+                                   new Date().getMonth() + 1 === calendarData.month &&
+                                   new Date().getDate() === day}
+                  <div
+                    class="calendar-day"
+                    class:today={isToday}
+                    class:selected={selectedCalendarDate === fortune?.date}
+                    class:sunday={dayOfWeek === 0}
+                    class:saturday={dayOfWeek === 6}
+                    onclick={() => selectedCalendarDate = fortune?.date || null}
+                  >
+                    <span class="day-number">{day}</span>
+                    {#if fortune}
+                      <div class="day-score" style="background: {getDayScoreColor(fortune.overallScore)}">
+                        {fortune.overallScore}
+                      </div>
+                    {/if}
+                  </div>
+                {/each}
+              </div>
+            </div>
+
+            <!-- 선택된 날짜의 상세 운세 -->
+            {#if selectedCalendarDate}
+              {@const selectedFortune = calendarData.fortunes.find(f => f.date === selectedCalendarDate)}
+              {#if selectedFortune}
+                <div class="selected-fortune-card">
+                  <h3>{selectedCalendarDate}</h3>
+                  <div class="selected-fortune-details">
+                    <div class="fortune-detail-item">
+                      <span class="fortune-detail-label">일진</span>
+                      <span class="fortune-detail-value">{selectedFortune.todayPillar}</span>
+                    </div>
+                    <div class="fortune-detail-item">
+                      <span class="fortune-detail-label">총운</span>
+                      <span class="fortune-detail-value" style="color: {getDayScoreColor(selectedFortune.overallScore)}">
+                        {selectedFortune.overallScore}점
+                      </span>
+                    </div>
+                    <div class="fortune-detail-item">
+                      <span class="fortune-detail-label">행운의 색</span>
+                      <span class="fortune-detail-value">{selectedFortune.luckyColor}</span>
+                    </div>
+                  </div>
+                </div>
+              {/if}
+            {/if}
+          {:else}
+            <div class="empty-calendar">
+              <p>달력 정보를 불러올 수 없습니다.</p>
+              <button class="primary-btn" onclick={() => loadCalendar()}>다시 시도</button>
             </div>
           {/if}
         </div>
@@ -1540,6 +1973,720 @@
     color: var(--text);
   }
 
+  /* ==================== Dashboard View ==================== */
+  .dashboard-view {
+    flex: 1;
+    overflow-y: auto;
+    padding: var(--space-4);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+  }
+
+  .dashboard-card {
+    background: var(--surface);
+    padding: var(--space-5);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-sm);
+  }
+
+  .dashboard-card h2 {
+    margin-bottom: var(--space-4);
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-secondary);
+  }
+
+  /* ===== Today Hero Card (사주몽 캐릭터) ===== */
+  .today-hero-card {
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+    padding: var(--space-6);
+    border-radius: var(--radius-xl);
+    text-align: center;
+    color: var(--white);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .today-hero-card::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: radial-gradient(circle, rgba(139, 92, 246, 0.1) 0%, transparent 50%);
+    animation: rotate 20s linear infinite;
+  }
+
+  @keyframes rotate {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+
+  .hero-date {
+    font-size: 13px;
+    color: rgba(255,255,255,0.6);
+    margin-bottom: var(--space-4);
+    position: relative;
+  }
+
+  /* 사주몽 캐릭터 */
+  .sajumong-character {
+    position: relative;
+    width: 120px;
+    height: 120px;
+    margin: 0 auto var(--space-4);
+  }
+
+  .character-body {
+    position: relative;
+    width: 100%;
+    height: 100%;
+  }
+
+  .character-aura {
+    position: absolute;
+    inset: -10px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(139, 92, 246, 0.3) 0%, transparent 70%);
+    opacity: 0.5;
+  }
+
+  .character-aura.glow {
+    opacity: 1;
+    animation: pulse 2s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { transform: scale(1); opacity: 0.8; }
+    50% { transform: scale(1.1); opacity: 1; }
+  }
+
+  .character-face {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 80px;
+    height: 80px;
+    background: linear-gradient(145deg, #e8d5b7 0%, #d4b896 100%);
+    border-radius: 50%;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+  }
+
+  .character-eyes {
+    display: flex;
+    justify-content: center;
+    gap: 16px;
+    padding-top: 24px;
+  }
+
+  .eye {
+    width: 10px;
+    height: 10px;
+    background: #2d2d2d;
+    border-radius: 50%;
+    position: relative;
+  }
+
+  .eye::after {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 4px;
+    height: 4px;
+    background: white;
+    border-radius: 50%;
+  }
+
+  .eye.sparkle::after {
+    animation: sparkle 1s ease-in-out infinite;
+  }
+
+  @keyframes sparkle {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+
+  .eye.sad {
+    height: 6px;
+    border-radius: 0 0 10px 10px;
+    margin-top: 4px;
+  }
+
+  .character-mouth {
+    width: 20px;
+    height: 10px;
+    margin: 12px auto 0;
+    position: relative;
+  }
+
+  .character-mouth.happy {
+    border: 3px solid #2d2d2d;
+    border-top: none;
+    border-radius: 0 0 20px 20px;
+  }
+
+  .character-mouth.neutral {
+    width: 16px;
+    height: 3px;
+    background: #2d2d2d;
+    border-radius: 2px;
+    margin-top: 16px;
+  }
+
+  .character-mouth.sad {
+    border: 3px solid #2d2d2d;
+    border-bottom: none;
+    border-radius: 20px 20px 0 0;
+    margin-top: 14px;
+  }
+
+  .character-sweat {
+    position: absolute;
+    top: 20px;
+    right: 8px;
+    width: 6px;
+    height: 10px;
+    background: #87ceeb;
+    border-radius: 50% 50% 50% 50%;
+    animation: drip 1.5s ease-in-out infinite;
+  }
+
+  @keyframes drip {
+    0%, 100% { transform: translateY(0); opacity: 1; }
+    50% { transform: translateY(4px); opacity: 0.5; }
+  }
+
+  .character-crystal {
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 32px;
+    filter: drop-shadow(0 4px 8px rgba(139, 92, 246, 0.5));
+  }
+
+  .hero-mood {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
+    margin-bottom: var(--space-3);
+    position: relative;
+  }
+
+  .mood-emoji {
+    font-size: 24px;
+  }
+
+  .mood-label {
+    font-size: 18px;
+    font-weight: 700;
+  }
+
+  /* 점수 서클 */
+  .hero-score {
+    margin-bottom: var(--space-4);
+    position: relative;
+  }
+
+  .score-circle {
+    width: 100px;
+    height: 100px;
+    margin: 0 auto;
+    position: relative;
+  }
+
+  .score-circle svg {
+    width: 100%;
+    height: 100%;
+    transform: rotate(-90deg);
+  }
+
+  .score-bg {
+    fill: none;
+    stroke: rgba(255,255,255,0.1);
+    stroke-width: 8;
+  }
+
+  .score-fill {
+    fill: none;
+    stroke: #8b5cf6;
+    stroke-width: 8;
+    stroke-linecap: round;
+    transition: stroke-dasharray 1s ease;
+  }
+
+  .score-text {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .score-number {
+    font-size: 28px;
+    font-weight: 700;
+  }
+
+  .score-unit {
+    font-size: 12px;
+    color: rgba(255,255,255,0.6);
+  }
+
+  .hero-description {
+    font-size: 14px;
+    color: rgba(255,255,255,0.8);
+    margin-bottom: var(--space-4);
+    position: relative;
+  }
+
+  .hero-pillar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
+    font-size: 13px;
+    color: rgba(255,255,255,0.6);
+    position: relative;
+  }
+
+  .pillar-value {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--white);
+  }
+
+  /* ===== Advice Card ===== */
+  .advice-card {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-3);
+    background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+    border: none;
+  }
+
+  .advice-icon {
+    font-size: 24px;
+    flex-shrink: 0;
+  }
+
+  .advice-text {
+    font-size: 14px;
+    line-height: 1.6;
+    color: #78350f;
+    font-style: italic;
+  }
+
+  /* ===== Category Scores ===== */
+  .category-scores {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+  }
+
+  .category-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+  }
+
+  .cat-icon {
+    font-size: 16px;
+    width: 24px;
+    text-align: center;
+  }
+
+  .cat-label {
+    width: 40px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-secondary);
+  }
+
+  .cat-bar {
+    flex: 1;
+    height: 8px;
+    background: var(--gray-100);
+    border-radius: var(--radius-full);
+    overflow: hidden;
+  }
+
+  .cat-fill {
+    height: 100%;
+    border-radius: var(--radius-full);
+    transition: width 0.5s ease;
+  }
+
+  .cat-score {
+    width: 30px;
+    text-align: right;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+  }
+
+  /* ===== Lucky Grid ===== */
+  .lucky-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--space-3);
+  }
+
+  .lucky-item-big {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-4);
+    background: var(--gray-50);
+    border-radius: var(--radius-lg);
+  }
+
+  .lucky-item-big .lucky-icon {
+    font-size: 24px;
+  }
+
+  .lucky-item-big .lucky-label {
+    font-size: 11px;
+    color: var(--text-muted);
+  }
+
+  .lucky-item-big .lucky-value {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--text);
+  }
+
+  /* ===== Strength Mini ===== */
+  .strength-mini-content {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+  }
+
+  .strength-mini-gauge {
+    flex: 1;
+  }
+
+  .mini-gauge-bar {
+    height: 8px;
+    background: linear-gradient(to right, #3b82f6, #22c55e 50%, #ef4444);
+    border-radius: var(--radius-full);
+    position: relative;
+  }
+
+  .mini-gauge-fill {
+    position: absolute;
+    left: 0;
+    top: 0;
+    height: 100%;
+    background: transparent;
+  }
+
+  .mini-gauge-marker {
+    position: absolute;
+    top: -3px;
+    width: 4px;
+    height: 14px;
+    background: var(--gray-800);
+    border-radius: 2px;
+    transform: translateX(-50%);
+  }
+
+  .mini-gauge-labels {
+    display: flex;
+    justify-content: space-between;
+    font-size: 10px;
+    color: var(--text-muted);
+    margin-top: var(--space-1);
+  }
+
+  .strength-mini-info {
+    text-align: right;
+  }
+
+  .mini-label {
+    display: block;
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--text);
+  }
+
+  .mini-element {
+    font-size: 12px;
+    color: var(--text-secondary);
+  }
+
+  /* ===== Yongshin Mini ===== */
+  .yongshin-summary {
+    display: flex;
+    gap: var(--space-3);
+  }
+
+  .yong-item {
+    flex: 1;
+    padding: var(--space-3);
+    border-radius: var(--radius-md);
+    text-align: center;
+  }
+
+  .yong-item.good {
+    background: #ecfdf5;
+  }
+
+  .yong-item.bad {
+    background: #fef2f2;
+  }
+
+  .yong-role {
+    display: block;
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-bottom: var(--space-1);
+  }
+
+  .yong-value {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text);
+  }
+
+  /* ===== Elements Mini ===== */
+  .elements-row {
+    display: flex;
+    justify-content: space-around;
+    align-items: flex-end;
+    height: 100px;
+    padding-top: var(--space-4);
+  }
+
+  .element-mini-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-1);
+  }
+
+  .element-mini-bar {
+    width: 32px;
+    min-height: 4px;
+    border-radius: var(--radius-sm);
+    transition: height 0.5s ease;
+  }
+
+  .element-mini-name {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text);
+  }
+
+  .element-mini-count {
+    font-size: 11px;
+    color: var(--text-muted);
+  }
+
+  .empty-dashboard {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    gap: var(--space-4);
+    color: var(--text-secondary);
+  }
+
+  /* ==================== Calendar View ==================== */
+  .calendar-view {
+    flex: 1;
+    overflow-y: auto;
+    padding: var(--space-6);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-6);
+  }
+
+  .calendar-card {
+    background: var(--surface);
+    padding: var(--space-6);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-sm);
+  }
+
+  .calendar-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: var(--space-5);
+  }
+
+  .calendar-header h2 {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--text);
+  }
+
+  .calendar-nav-btn {
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius-md);
+    color: var(--text-secondary);
+    font-size: 14px;
+  }
+
+  .calendar-nav-btn:hover {
+    background: var(--gray-100);
+    color: var(--text);
+  }
+
+  .calendar-weekdays {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: var(--space-1);
+    margin-bottom: var(--space-2);
+  }
+
+  .weekday {
+    text-align: center;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-muted);
+    padding: var(--space-2);
+  }
+
+  .weekday.sunday {
+    color: #ef4444;
+  }
+
+  .weekday.saturday {
+    color: #3b82f6;
+  }
+
+  .calendar-days {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: var(--space-1);
+  }
+
+  .calendar-day {
+    aspect-ratio: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-1);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+
+  .calendar-day:hover:not(.empty) {
+    background: var(--gray-100);
+  }
+
+  .calendar-day.empty {
+    cursor: default;
+  }
+
+  .calendar-day.today {
+    background: var(--gray-100);
+    box-shadow: inset 0 0 0 2px var(--gray-800);
+  }
+
+  .calendar-day.selected {
+    background: var(--gray-800);
+  }
+
+  .calendar-day.selected .day-number {
+    color: var(--white);
+  }
+
+  .calendar-day.sunday .day-number {
+    color: #ef4444;
+  }
+
+  .calendar-day.saturday .day-number {
+    color: #3b82f6;
+  }
+
+  .calendar-day.selected.sunday .day-number,
+  .calendar-day.selected.saturday .day-number {
+    color: var(--white);
+  }
+
+  .day-number {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text);
+  }
+
+  .day-score {
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--white);
+    padding: 2px 6px;
+    border-radius: var(--radius-sm);
+  }
+
+  .selected-fortune-card {
+    background: var(--surface);
+    padding: var(--space-5);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-sm);
+  }
+
+  .selected-fortune-card h3 {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: var(--space-4);
+  }
+
+  .selected-fortune-details {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--space-3);
+  }
+
+  .fortune-detail-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-1);
+    padding: var(--space-3);
+    background: var(--gray-50);
+    border-radius: var(--radius-md);
+  }
+
+  .fortune-detail-label {
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+
+  .fortune-detail-value {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text);
+  }
+
+  .empty-calendar {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    gap: var(--space-4);
+    color: var(--text-secondary);
+  }
+
   /* ==================== Responsive ==================== */
   @media (max-width: 640px) {
     .header {
@@ -1560,7 +2707,7 @@
     .nav-btn {
       flex: 1;
       text-align: center;
-      font-size: 13px;
+      font-size: 16px;
       padding: var(--space-2) var(--space-3);
     }
 
@@ -1580,8 +2727,20 @@
       padding: var(--space-4);
     }
 
-    .fortune-view, .saju-view {
+    .fortune-view, .saju-view, .dashboard-view, .calendar-view {
       padding: var(--space-4);
+    }
+
+    .strength-details {
+      grid-template-columns: 1fr;
+    }
+
+    .yongshin-grid {
+      grid-template-columns: repeat(2, 1fr);
+    }
+
+    .selected-fortune-details {
+      grid-template-columns: 1fr;
     }
   }
 </style>

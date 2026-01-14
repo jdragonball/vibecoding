@@ -1,5 +1,5 @@
 import Database from 'better-sqlite3';
-import { CREATE_TABLES_SQL, type User, type SajuData, type ChatSession, type ChatMessage, type DailyFortuneRecord } from './schema';
+import { CREATE_TABLES_SQL, type User, type SajuData, type ChatSession, type ChatMessage, type DailyFortuneRecord, type ChatSummary, type UserMemory } from './schema';
 import type { SajuResult } from '../saju/calculator';
 import type { DailyFortune } from '../saju/fortune';
 import { randomUUID } from 'crypto';
@@ -469,6 +469,179 @@ export function getTodayFortune(userId: string): DailyFortuneRecord | null {
     luckyDirection: row.lucky_direction as string,
     createdAt: row.created_at as string
   };
+}
+
+// ============ 대화 요약 관련 함수 (Summarization) ============
+
+// 대화 요약 저장
+export function saveChatSummary(sessionId: string, messageCount: number, summary: string): ChatSummary {
+  const db = getDatabase();
+  const id = randomUUID();
+  const now = new Date().toISOString();
+
+  // 기존 요약이 있으면 업데이트, 없으면 삽입
+  const stmt = db.prepare(`
+    INSERT OR REPLACE INTO chat_summaries (id, session_id, message_count, summary, created_at)
+    VALUES (
+      COALESCE((SELECT id FROM chat_summaries WHERE session_id = ?), ?),
+      ?, ?, ?, ?
+    )
+  `);
+
+  stmt.run(sessionId, id, sessionId, messageCount, summary, now);
+
+  return {
+    id,
+    sessionId,
+    messageCount,
+    summary,
+    createdAt: now
+  };
+}
+
+// 세션의 대화 요약 조회
+export function getChatSummary(sessionId: string): ChatSummary | null {
+  const db = getDatabase();
+  const stmt = db.prepare('SELECT * FROM chat_summaries WHERE session_id = ?');
+  const row = stmt.get(sessionId) as Record<string, unknown> | undefined;
+
+  if (!row) return null;
+
+  return {
+    id: row.id as string,
+    sessionId: row.session_id as string,
+    messageCount: row.message_count as number,
+    summary: row.summary as string,
+    createdAt: row.created_at as string
+  };
+}
+
+// 세션의 메시지 수 조회
+export function getMessageCount(sessionId: string): number {
+  const db = getDatabase();
+  const stmt = db.prepare('SELECT COUNT(*) as count FROM chat_messages WHERE session_id = ?');
+  const row = stmt.get(sessionId) as { count: number };
+  return row.count;
+}
+
+// ============ 사용자 메모리 관련 함수 (Memory Formation) ============
+
+// 사용자 메모리 저장
+export function saveUserMemory(
+  userId: string,
+  category: 'preference' | 'concern' | 'personal' | 'context',
+  content: string,
+  sourceSessionId: string | null = null
+): UserMemory {
+  const db = getDatabase();
+  const id = randomUUID();
+  const now = new Date().toISOString();
+
+  // 중복 방지: 같은 내용이 이미 있으면 저장하지 않음
+  const existingStmt = db.prepare(`
+    SELECT id FROM user_memories
+    WHERE user_id = ? AND content = ?
+  `);
+  const existing = existingStmt.get(userId, content);
+
+  if (existing) {
+    // 이미 있으면 기존 것 반환
+    return getUserMemoryById((existing as { id: string }).id)!;
+  }
+
+  const stmt = db.prepare(`
+    INSERT INTO user_memories (id, user_id, category, content, source_session_id, created_at)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `);
+
+  stmt.run(id, userId, category, content, sourceSessionId, now);
+
+  return {
+    id,
+    userId,
+    category,
+    content,
+    sourceSessionId,
+    createdAt: now
+  };
+}
+
+// 메모리 ID로 조회
+function getUserMemoryById(id: string): UserMemory | null {
+  const db = getDatabase();
+  const stmt = db.prepare('SELECT * FROM user_memories WHERE id = ?');
+  const row = stmt.get(id) as Record<string, unknown> | undefined;
+
+  if (!row) return null;
+
+  return {
+    id: row.id as string,
+    userId: row.user_id as string,
+    category: row.category as 'preference' | 'concern' | 'personal' | 'context',
+    content: row.content as string,
+    sourceSessionId: row.source_session_id as string | null,
+    createdAt: row.created_at as string
+  };
+}
+
+// 사용자의 모든 메모리 조회
+export function getUserMemories(userId: string, limit: number = 20): UserMemory[] {
+  const db = getDatabase();
+  const stmt = db.prepare(`
+    SELECT * FROM user_memories
+    WHERE user_id = ?
+    ORDER BY created_at DESC
+    LIMIT ?
+  `);
+
+  const rows = stmt.all(userId, limit) as Record<string, unknown>[];
+
+  return rows.map(row => ({
+    id: row.id as string,
+    userId: row.user_id as string,
+    category: row.category as 'preference' | 'concern' | 'personal' | 'context',
+    content: row.content as string,
+    sourceSessionId: row.source_session_id as string | null,
+    createdAt: row.created_at as string
+  }));
+}
+
+// 카테고리별 메모리 조회
+export function getUserMemoriesByCategory(
+  userId: string,
+  category: 'preference' | 'concern' | 'personal' | 'context'
+): UserMemory[] {
+  const db = getDatabase();
+  const stmt = db.prepare(`
+    SELECT * FROM user_memories
+    WHERE user_id = ? AND category = ?
+    ORDER BY created_at DESC
+  `);
+
+  const rows = stmt.all(userId, category) as Record<string, unknown>[];
+
+  return rows.map(row => ({
+    id: row.id as string,
+    userId: row.user_id as string,
+    category: row.category as 'preference' | 'concern' | 'personal' | 'context',
+    content: row.content as string,
+    sourceSessionId: row.source_session_id as string | null,
+    createdAt: row.created_at as string
+  }));
+}
+
+// 메모리 삭제
+export function deleteUserMemory(id: string): void {
+  const db = getDatabase();
+  const stmt = db.prepare('DELETE FROM user_memories WHERE id = ?');
+  stmt.run(id);
+}
+
+// 사용자의 모든 메모리 삭제
+export function clearUserMemories(userId: string): void {
+  const db = getDatabase();
+  const stmt = db.prepare('DELETE FROM user_memories WHERE user_id = ?');
+  stmt.run(userId);
 }
 
 // 데이터베이스 닫기

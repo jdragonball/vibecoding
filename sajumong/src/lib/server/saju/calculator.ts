@@ -1,12 +1,29 @@
+// 사주 계산 엔진 (60saju 로직 기반)
+
 import {
-  CHEONGAN,
-  JIJI,
-  CHEONGAN_OHAENG,
-  JIJI_OHAENG,
-  CHEONGAN_EUMYANG,
-  JIJI_EUMYANG,
-  ANIMALS
-} from './constants';
+  type StemBranch,
+  createStemBranch,
+  stemBranchToString,
+  stemBranchToKorean,
+  getStemElement,
+  getBranchElement,
+  isYangStem,
+  HEAVENLY_STEMS,
+  HEAVENLY_STEMS_KO,
+  EARTHLY_BRANCHES,
+  EARTHLY_BRANCHES_KO,
+  ANIMALS,
+  ELEMENT_KO,
+  type Element
+} from './ganji';
+
+import {
+  julianDay,
+  solarTermSeries,
+  findLichunTime,
+  normalizeTime,
+  type SolarTermEvent
+} from './astro';
 
 export interface BirthInfo {
   year: number;
@@ -19,155 +36,162 @@ export interface BirthInfo {
 }
 
 export interface Pillar {
-  cheongan: string;
-  jiji: string;
-  fullName: string;
-  ohaeng: {
-    cheongan: string;
-    jiji: string;
-  };
-  eumyang: {
-    cheongan: '양' | '음';
-    jiji: '양' | '음';
-  };
+  stem: string;        // 천간 (한자)
+  branch: string;      // 지지 (한자)
+  stemKo: string;      // 천간 (한글)
+  branchKo: string;    // 지지 (한글)
+  fullName: string;    // 간지 (한자)
+  fullNameKo: string;  // 간지 (한글)
+  stemElement: Element;
+  branchElement: Element;
+  stemIndex: number;
+  branchIndex: number;
 }
 
 export interface SajuResult {
-  yearPillar: Pillar;   // 년주
-  monthPillar: Pillar;  // 월주
-  dayPillar: Pillar;    // 일주
-  hourPillar: Pillar;   // 시주
-  animal: string;       // 띠
+  yearPillar: Pillar;
+  monthPillar: Pillar;
+  dayPillar: Pillar;
+  hourPillar: Pillar;
+  animal: string;
   gender: 'male' | 'female';
   birthInfo: BirthInfo;
-  ohaengCount: Record<string, number>;  // 오행 분포
+  ohaengCount: Record<string, number>;
+  solarTerms?: SolarTermEvent[];
 }
 
-// 년주 계산 (입춘 기준)
-function calculateYearPillar(year: number, month: number, day: number): Pillar {
-  // 입춘(2월 4일경) 이전이면 전년도로 계산
-  let adjustedYear = year;
-  if (month < 2 || (month === 2 && day < 4)) {
-    adjustedYear = year - 1;
-  }
-
-  // 갑자년 기준 (1984년이 갑자년)
-  const baseYear = 1984;
-  let index = (adjustedYear - baseYear) % 60;
-  if (index < 0) index += 60;
-
-  const cheonganIndex = index % 10;
-  const jijiIndex = index % 12;
-
-  const cheongan = CHEONGAN[cheonganIndex];
-  const jiji = JIJI[jijiIndex];
-
-  return createPillar(cheongan, jiji);
-}
-
-// 월주 계산
-function calculateMonthPillar(year: number, month: number, day: number, yearCheongan: string): Pillar {
-  // 절기 기준 월 계산 (간략화된 버전)
-  let sajuMonth = month;
-
-  // 각 월의 절기일 (대략적인 값)
-  const jeolgiDays = [6, 4, 6, 5, 6, 6, 7, 8, 8, 8, 8, 7];
-
-  if (day < jeolgiDays[month - 1]) {
-    sajuMonth = month - 1;
-    if (sajuMonth === 0) sajuMonth = 12;
-  }
-
-  // 년간에 따른 월간 계산 (년간합오행)
-  const yearCheonganIndex = CHEONGAN.indexOf(yearCheongan);
-  const monthCheonganBase = (yearCheonganIndex % 5) * 2;
-  const monthCheonganIndex = (monthCheonganBase + sajuMonth - 1) % 10;
-
-  // 월지는 인(寅)월부터 시작 (1월=인월, 2월=묘월...)
-  const monthJijiIndex = (sajuMonth + 1) % 12;
-
-  const cheongan = CHEONGAN[monthCheonganIndex];
-  const jiji = JIJI[monthJijiIndex];
-
-  return createPillar(cheongan, jiji);
-}
-
-// 일주 계산 (복잡한 만세력 계산 - 간략화된 버전)
-function calculateDayPillar(year: number, month: number, day: number): Pillar {
-  // 기준일: 1900년 1월 1일 = 갑진일
-  const baseDate = new Date(1900, 0, 1);
-  const targetDate = new Date(year, month - 1, day);
-  const diffDays = Math.floor((targetDate.getTime() - baseDate.getTime()) / (1000 * 60 * 60 * 24));
-
-  // 1900년 1월 1일이 갑진일이므로 인덱스 조정
-  // 갑 = 0, 진 = 4
-  const baseDayIndex = 0 + 4 * 10; // 60갑자에서의 갑진 위치
-  let dayIndex = (baseDayIndex + diffDays) % 60;
-  if (dayIndex < 0) dayIndex += 60;
-
-  const cheonganIndex = dayIndex % 10;
-  const jijiIndex = dayIndex % 12;
-
-  const cheongan = CHEONGAN[cheonganIndex];
-  const jiji = JIJI[jijiIndex];
-
-  return createPillar(cheongan, jiji);
-}
-
-// 시주 계산
-function calculateHourPillar(hour: number, dayCheongan: string): Pillar {
-  // 시간을 지지로 변환
-  let hourJijiIndex: number;
-
-  if (hour >= 23 || hour < 1) hourJijiIndex = 0;      // 자시
-  else if (hour < 3) hourJijiIndex = 1;               // 축시
-  else if (hour < 5) hourJijiIndex = 2;               // 인시
-  else if (hour < 7) hourJijiIndex = 3;               // 묘시
-  else if (hour < 9) hourJijiIndex = 4;               // 진시
-  else if (hour < 11) hourJijiIndex = 5;              // 사시
-  else if (hour < 13) hourJijiIndex = 6;              // 오시
-  else if (hour < 15) hourJijiIndex = 7;              // 미시
-  else if (hour < 17) hourJijiIndex = 8;              // 신시
-  else if (hour < 19) hourJijiIndex = 9;              // 유시
-  else if (hour < 21) hourJijiIndex = 10;             // 술시
-  else hourJijiIndex = 11;                            // 해시
-
-  // 일간에 따른 시간 계산 (일간합오행)
-  const dayCheonganIndex = CHEONGAN.indexOf(dayCheongan);
-  const hourCheonganBase = (dayCheonganIndex % 5) * 2;
-  const hourCheonganIndex = (hourCheonganBase + hourJijiIndex) % 10;
-
-  const cheongan = CHEONGAN[hourCheonganIndex];
-  const jiji = JIJI[hourJijiIndex];
-
-  return createPillar(cheongan, jiji);
-}
-
-// 기둥(주) 생성 헬퍼
-function createPillar(cheongan: string, jiji: string): Pillar {
+// StemBranch를 Pillar로 변환
+function toPillar(sb: StemBranch): Pillar {
   return {
-    cheongan,
-    jiji,
-    fullName: cheongan + jiji,
-    ohaeng: {
-      cheongan: CHEONGAN_OHAENG[cheongan],
-      jiji: JIJI_OHAENG[jiji]
-    },
-    eumyang: {
-      cheongan: CHEONGAN_EUMYANG[cheongan],
-      jiji: JIJI_EUMYANG[jiji]
-    }
+    stem: HEAVENLY_STEMS[sb.stemIndex],
+    branch: EARTHLY_BRANCHES[sb.branchIndex],
+    stemKo: HEAVENLY_STEMS_KO[sb.stemIndex],
+    branchKo: EARTHLY_BRANCHES_KO[sb.branchIndex],
+    fullName: stemBranchToString(sb),
+    fullNameKo: stemBranchToKorean(sb),
+    stemElement: getStemElement(sb.stemIndex),
+    branchElement: getBranchElement(sb.branchIndex),
+    stemIndex: sb.stemIndex,
+    branchIndex: sb.branchIndex
   };
 }
 
+// 년주 계산 (입춘 기준)
+function computeYearPillar(workingTime: Date, events: SolarTermEvent[]): StemBranch {
+  let year = workingTime.getFullYear();
+
+  // 입춘 이전이면 전년도로 계산
+  const lichunTime = findLichunTime(events);
+  if (lichunTime && workingTime < lichunTime) {
+    year = year - 1;
+  }
+
+  const stem = ((year - 4) % 10 + 10) % 10;
+  const branch = ((year - 4) % 12 + 12) % 12;
+
+  return createStemBranch(stem, branch);
+}
+
+// 월간 시작 인덱스 (년간에 따라)
+function monthStemStartByYearStem(yearStem: number): number {
+  switch (yearStem % 10) {
+    case 0: case 5: return 2;  // 甲/己년 -> 丙
+    case 1: case 6: return 4;  // 乙/庚년 -> 戊
+    case 2: case 7: return 6;  // 丙/辛년 -> 庚
+    case 3: case 8: return 8;  // 丁/壬년 -> 壬
+    case 4: case 9: return 0;  // 戊/癸년 -> 甲
+    default: return 2;
+  }
+}
+
+// 월주 계산 (절기 기준)
+function computeMonthPillar(workingTime: Date, events: SolarTermEvent[], yearStem: number): StemBranch {
+  // 節氣만 필터링 (jie)
+  const boundaries = events
+    .filter(e => e.term.kind === 'jie')
+    .sort((a, b) => a.time.getTime() - b.time.getTime());
+
+  if (boundaries.length < 13) {
+    throw new Error('Solar term series insufficient');
+  }
+
+  // 현재 시간이 속한 월 찾기
+  let monthIndex = 12; // 기본값 (첫 절기 이전)
+  for (let i = boundaries.length - 1; i >= 0; i--) {
+    if (workingTime >= boundaries[i].time) {
+      monthIndex = boundaries[i].term.monthIndex;
+      break;
+    }
+  }
+
+  // 지지: 월 1 -> 인(寅, index 2)
+  const branchIndex = (monthIndex + 1) % 12;
+
+  // 천간: 년간에 따른 월간 계산
+  const monthStemStart = monthStemStartByYearStem(yearStem);
+  const stemIndex = (monthStemStart + monthIndex - 1 + 10) % 10;
+
+  return createStemBranch(stemIndex, branchIndex);
+}
+
+// 일주 계산 (줄리안 날짜 기반)
+function computeDayPillar(workingTime: Date): StemBranch {
+  const local = new Date(Date.UTC(
+    workingTime.getFullYear(),
+    workingTime.getMonth(),
+    workingTime.getDate(),
+    workingTime.getHours(),
+    workingTime.getMinutes(),
+    workingTime.getSeconds()
+  ));
+
+  const jd = julianDay(local);
+  const dayNumber = Math.floor(jd + 0.5);
+  const cycle = ((dayNumber + 49) % 60 + 60) % 60;
+
+  const stem = cycle % 10;
+  const branch = cycle % 12;
+
+  return createStemBranch(stem, branch);
+}
+
+// 시간을 지지 인덱스로 변환
+function hourBranchIndex(hour: number): number {
+  if (hour === 23 || hour < 1) return 0;  // 子
+  if (hour < 3) return 1;   // 丑
+  if (hour < 5) return 2;   // 寅
+  if (hour < 7) return 3;   // 卯
+  if (hour < 9) return 4;   // 辰
+  if (hour < 11) return 5;  // 巳
+  if (hour < 13) return 6;  // 午
+  if (hour < 15) return 7;  // 未
+  if (hour < 17) return 8;  // 申
+  if (hour < 19) return 9;  // 酉
+  if (hour < 21) return 10; // 戌
+  return 11;                // 亥
+}
+
+// 시주 계산
+function computeHourPillar(workingTime: Date, dayPillar: StemBranch): StemBranch {
+  const hour = workingTime.getHours();
+  const hb = hourBranchIndex(hour);
+  const stem = (dayPillar.stemIndex * 2 + hb) % 10;
+  return createStemBranch(stem, hb);
+}
+
 // 띠 계산
-function calculateAnimal(year: number, month: number, day: number): string {
+function computeAnimal(year: number, events: SolarTermEvent[]): string {
+  const lichunTime = findLichunTime(events);
   let adjustedYear = year;
-  if (month < 2 || (month === 2 && day < 4)) {
+
+  // 입춘 기준 년도 조정 (간략화)
+  const now = new Date(year, 1, 1);
+  if (lichunTime && now < lichunTime) {
     adjustedYear = year - 1;
   }
-  const animalIndex = (adjustedYear - 4) % 12;
-  return ANIMALS[animalIndex >= 0 ? animalIndex : animalIndex + 12];
+
+  const animalIndex = ((adjustedYear - 4) % 12 + 12) % 12;
+  return ANIMALS[animalIndex];
 }
 
 // 오행 분포 계산
@@ -177,8 +201,8 @@ function calculateOhaengCount(pillars: Pillar[]): Record<string, number> {
   };
 
   for (const pillar of pillars) {
-    count[pillar.ohaeng.cheongan]++;
-    count[pillar.ohaeng.jiji]++;
+    count[ELEMENT_KO[pillar.stemElement]]++;
+    count[ELEMENT_KO[pillar.branchElement]]++;
   }
 
   return count;
@@ -188,14 +212,30 @@ function calculateOhaengCount(pillars: Pillar[]): Record<string, number> {
 export function calculateSaju(birthInfo: BirthInfo): SajuResult {
   const { year, month, day, hour, gender } = birthInfo;
 
-  // 4주 계산
-  const yearPillar = calculateYearPillar(year, month, day);
-  const monthPillar = calculateMonthPillar(year, month, day, yearPillar.cheongan);
-  const dayPillar = calculateDayPillar(year, month, day);
-  const hourPillar = calculateHourPillar(hour, dayPillar.cheongan);
+  // 생년월일시를 Date 객체로 변환
+  const civilTime = new Date(year, month - 1, day, hour, birthInfo.minute || 0);
+
+  // 시간 정규화 (경도 보정 - 한국 기준)
+  const normalized = normalizeTime(civilTime, 127.0);
+  const workingTime = normalized.localMeanSolar;
+
+  // 절기 시리즈 계산
+  const events = solarTermSeries(year);
+
+  // 사주 계산
+  const yearPillarSB = computeYearPillar(workingTime, events);
+  const monthPillarSB = computeMonthPillar(workingTime, events, yearPillarSB.stemIndex);
+  const dayPillarSB = computeDayPillar(workingTime);
+  const hourPillarSB = computeHourPillar(workingTime, dayPillarSB);
+
+  // Pillar로 변환
+  const yearPillar = toPillar(yearPillarSB);
+  const monthPillar = toPillar(monthPillarSB);
+  const dayPillar = toPillar(dayPillarSB);
+  const hourPillar = toPillar(hourPillarSB);
 
   // 띠 계산
-  const animal = calculateAnimal(year, month, day);
+  const animal = computeAnimal(year, events);
 
   // 오행 분포
   const ohaengCount = calculateOhaengCount([yearPillar, monthPillar, dayPillar, hourPillar]);
@@ -208,13 +248,19 @@ export function calculateSaju(birthInfo: BirthInfo): SajuResult {
     animal,
     gender,
     birthInfo,
-    ohaengCount
+    ohaengCount,
+    solarTerms: events
   };
 }
 
-// 사주를 문자열로 변환
+// 사주를 문자열로 변환 (한자)
 export function sajuToString(saju: SajuResult): string {
   return `${saju.yearPillar.fullName} ${saju.monthPillar.fullName} ${saju.dayPillar.fullName} ${saju.hourPillar.fullName}`;
+}
+
+// 사주를 문자열로 변환 (한글)
+export function sajuToKorean(saju: SajuResult): string {
+  return `${saju.yearPillar.fullNameKo} ${saju.monthPillar.fullNameKo} ${saju.dayPillar.fullNameKo} ${saju.hourPillar.fullNameKo}`;
 }
 
 // 사주 요약 정보 생성
@@ -238,10 +284,10 @@ export function generateSajuSummary(saju: SajuResult): string {
 띠: ${animal}띠
 
 [사주 구성]
-년주(年柱): ${yearPillar.fullName} (${yearPillar.ohaeng.cheongan}${yearPillar.ohaeng.jiji})
-월주(月柱): ${monthPillar.fullName} (${monthPillar.ohaeng.cheongan}${monthPillar.ohaeng.jiji})
-일주(日柱): ${dayPillar.fullName} (${dayPillar.ohaeng.cheongan}${dayPillar.ohaeng.jiji}) - 일간: ${dayPillar.cheongan}
-시주(時柱): ${hourPillar.fullName} (${hourPillar.ohaeng.cheongan}${hourPillar.ohaeng.jiji})
+년주(年柱): ${yearPillar.fullName} (${ELEMENT_KO[yearPillar.stemElement]}${ELEMENT_KO[yearPillar.branchElement]})
+월주(月柱): ${monthPillar.fullName} (${ELEMENT_KO[monthPillar.stemElement]}${ELEMENT_KO[monthPillar.branchElement]})
+일주(日柱): ${dayPillar.fullName} (${ELEMENT_KO[dayPillar.stemElement]}${ELEMENT_KO[dayPillar.branchElement]}) - 일간: ${dayPillar.stem}
+시주(時柱): ${hourPillar.fullName} (${ELEMENT_KO[hourPillar.stemElement]}${ELEMENT_KO[hourPillar.branchElement]})
 
 [오행 분포]
 목(木): ${ohaengCount['목']}개

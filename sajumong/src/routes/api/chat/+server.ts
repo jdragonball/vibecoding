@@ -1,6 +1,6 @@
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { generateChatResponse } from '$lib/server/ai/claude';
+import { generateChatResponse, summarizeMessages, extractMemories } from '$lib/server/ai/claude';
 import {
   getFirstUser,
   getChatHistory,
@@ -12,8 +12,20 @@ import {
   deleteChatSession,
   deleteLastAssistantMessage,
   getLastUserMessage,
-  updateChatSessionTitle
+  updateChatSessionTitle,
+  // Summarization
+  getChatSummary,
+  saveChatSummary,
+  getMessageCount,
+  // Memory
+  getUserMemories,
+  saveUserMemory
 } from '$lib/server/db/client';
+
+// 요약 트리거 메시지 수 (이 수를 초과하면 요약 생성)
+const SUMMARY_TRIGGER_COUNT = 15;
+// 최근 유지할 메시지 수 (요약 후에도 원본 유지)
+const RECENT_MESSAGES_COUNT = 10;
 
 export const POST: RequestHandler = async ({ request }) => {
   try {
@@ -57,7 +69,7 @@ export const POST: RequestHandler = async ({ request }) => {
         lastUserMsg.content,
         historyWithoutLast,
         sajuData,
-        user.name
+        user
       );
 
       // 응답 저장
@@ -78,18 +90,29 @@ export const POST: RequestHandler = async ({ request }) => {
     // 사주 데이터 조회
     const sajuData = getSajuDataByUserId(user.id);
 
-    // 채팅 기록 조회
-    const chatHistory = getChatHistory(session.id, 10);
+    // 채팅 기록 조회 (최근 메시지)
+    const chatHistory = getChatHistory(session.id, RECENT_MESSAGES_COUNT);
+
+    // 기존 요약 조회
+    const existingSummary = getChatSummary(session.id);
+
+    // 사용자 메모리 조회
+    const userMemories = getUserMemories(user.id, 10);
+    const memoryContents = userMemories.map(m => m.content);
 
     // 사용자 메시지 저장
     saveChatMessage(session.id, user.id, 'user', message);
 
-    // Claude 응답 생성
+    // Claude 응답 생성 (요약과 메모리 포함)
     const response = await generateChatResponse(
       message,
       chatHistory,
       sajuData,
-      user.name
+      user,
+      {
+        summary: existingSummary?.summary || null,
+        memories: memoryContents
+      }
     );
 
     // 응답 저장
@@ -99,6 +122,22 @@ export const POST: RequestHandler = async ({ request }) => {
     if (chatHistory.length === 0) {
       const title = message.length > 20 ? message.substring(0, 20) + '...' : message;
       updateChatSessionTitle(session.id, title);
+    }
+
+    // 백그라운드 작업: 메시지 수가 임계값 초과 시 요약 생성
+    const totalMessageCount = getMessageCount(session.id);
+    if (totalMessageCount > SUMMARY_TRIGGER_COUNT) {
+      // 비동기로 요약 생성 (응답 속도에 영향 없음)
+      triggerSummarization(session.id, totalMessageCount).catch(err => {
+        console.error('요약 생성 실패:', err);
+      });
+    }
+
+    // 백그라운드 작업: 10개 메시지마다 메모리 추출
+    if (totalMessageCount > 0 && totalMessageCount % 10 === 0) {
+      triggerMemoryExtraction(user.id, session.id, chatHistory).catch(err => {
+        console.error('메모리 추출 실패:', err);
+      });
     }
 
     return json({
@@ -215,3 +254,59 @@ export const PUT: RequestHandler = async () => {
     throw error(500, '서버 오류가 발생했습니다.');
   }
 };
+
+// ============ 백그라운드 작업 함수들 ============
+
+// 대화 요약 트리거 (백그라운드)
+async function triggerSummarization(sessionId: string, totalMessageCount: number): Promise<void> {
+  // 요약할 메시지 범위: 최근 10개 제외한 나머지
+  const messagesToSummarize = totalMessageCount - RECENT_MESSAGES_COUNT;
+  if (messagesToSummarize <= 0) return;
+
+  // 기존 요약이 있고, 새 메시지가 5개 미만이면 스킵
+  const existingSummary = getChatSummary(sessionId);
+  if (existingSummary && (totalMessageCount - existingSummary.messageCount) < 5) {
+    return;
+  }
+
+  // 요약할 메시지 조회 (오래된 메시지들)
+  const allMessages = getChatHistory(sessionId, 50);
+  const oldMessages = allMessages.slice(0, -RECENT_MESSAGES_COUNT);
+
+  if (oldMessages.length === 0) return;
+
+  console.log(`[Summarization] 세션 ${sessionId}: ${oldMessages.length}개 메시지 요약 시작`);
+
+  // 요약 생성
+  const summary = await summarizeMessages(oldMessages);
+
+  if (summary) {
+    // 요약 저장
+    saveChatSummary(sessionId, totalMessageCount, summary);
+    console.log(`[Summarization] 세션 ${sessionId}: 요약 저장 완료`);
+  }
+}
+
+// 메모리 추출 트리거 (백그라운드)
+async function triggerMemoryExtraction(
+  userId: string,
+  sessionId: string,
+  recentMessages: { role: string; content: string }[]
+): Promise<void> {
+  console.log(`[Memory] 사용자 ${userId}: 메모리 추출 시작`);
+
+  // 메모리 추출
+  const memories = await extractMemories(recentMessages as { role: 'user' | 'assistant'; content: string; id: string; sessionId: string; userId: string; createdAt: string }[]);
+
+  if (memories.length === 0) {
+    console.log(`[Memory] 추출된 메모리 없음`);
+    return;
+  }
+
+  // 메모리 저장
+  for (const memory of memories) {
+    saveUserMemory(userId, memory.category, memory.content, sessionId);
+  }
+
+  console.log(`[Memory] 사용자 ${userId}: ${memories.length}개 메모리 저장 완료`);
+}

@@ -58,6 +58,25 @@ export interface DailyFortuneRecord {
   createdAt: string;
 }
 
+// 대화 요약 (Summarization)
+export interface ChatSummary {
+  id: string;
+  sessionId: string;
+  messageCount: number;       // 요약된 메시지 수
+  summary: string;            // 요약 내용
+  createdAt: string;
+}
+
+// 사용자 메모리 (Memory Formation)
+export interface UserMemory {
+  id: string;
+  userId: string;
+  category: 'preference' | 'concern' | 'personal' | 'context';
+  content: string;
+  sourceSessionId: string | null;  // 추출된 세션
+  createdAt: string;
+}
+
 // 테이블 생성 SQL
 export const CREATE_TABLES_SQL = `
 -- 사용자 테이블
@@ -129,10 +148,35 @@ CREATE TABLE IF NOT EXISTS daily_fortunes (
   UNIQUE (user_id, fortune_date)
 );
 
+-- 대화 요약 테이블 (Summarization)
+CREATE TABLE IF NOT EXISTS chat_summaries (
+  id TEXT PRIMARY KEY,
+  session_id TEXT NOT NULL,
+  message_count INTEGER NOT NULL,
+  summary TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  FOREIGN KEY (session_id) REFERENCES chat_sessions(id) ON DELETE CASCADE
+);
+
+-- 사용자 메모리 테이블 (Memory Formation)
+CREATE TABLE IF NOT EXISTS user_memories (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  category TEXT NOT NULL CHECK (category IN ('preference', 'concern', 'personal', 'context')),
+  content TEXT NOT NULL,
+  source_session_id TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (source_session_id) REFERENCES chat_sessions(id) ON DELETE SET NULL
+);
+
 -- 인덱스 생성
 CREATE INDEX IF NOT EXISTS idx_chat_sessions_user_id ON chat_sessions(user_id);
 CREATE INDEX IF NOT EXISTS idx_chat_messages_session_id ON chat_messages(session_id);
 CREATE INDEX IF NOT EXISTS idx_chat_messages_user_id ON chat_messages(user_id);
 CREATE INDEX IF NOT EXISTS idx_chat_messages_created_at ON chat_messages(created_at);
 CREATE INDEX IF NOT EXISTS idx_daily_fortunes_user_date ON daily_fortunes(user_id, fortune_date);
+CREATE INDEX IF NOT EXISTS idx_chat_summaries_session_id ON chat_summaries(session_id);
+CREATE INDEX IF NOT EXISTS idx_user_memories_user_id ON user_memories(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_memories_category ON user_memories(category);
 `;
