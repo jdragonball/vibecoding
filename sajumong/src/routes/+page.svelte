@@ -1,6 +1,34 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { marked } from 'marked';
+  import {
+    ChatCircle,
+    ChartBar,
+    Calendar,
+    Sparkle,
+    ClipboardText,
+    Trash,
+    Plus,
+    PencilSimple,
+    List,
+    X,
+    ArrowsClockwise,
+    Heart,
+    CurrencyCircleDollar,
+    Heartbeat,
+    Briefcase,
+    Notepad,
+    Palette,
+    NumberSquareOne,
+    Compass,
+    PawPrint,
+    Scales,
+    Target,
+    Leaf,
+    CaretLeft,
+    CaretRight,
+    PaperPlaneTilt
+  } from 'phosphor-svelte';
 
   // marked 설정
   marked.setOptions({
@@ -513,93 +541,101 @@
   $: canRegenerate = messages.length > 0 && messages[messages.length - 1]?.role === 'assistant';
 </script>
 
-<div class="app-container">
-  <!-- 사이드바 -->
-  <aside class="sidebar" class:open={showSidebar}>
-    <div class="sidebar-header">
-      <h2>대화 목록</h2>
-      <button class="close-btn" onclick={() => showSidebar = false}>✕</button>
-    </div>
+<div class="app-wrapper">
+  <div class="app-container">
+    <!-- 사이드바 -->
+    <aside class="sidebar" class:open={showSidebar}>
+      <div class="sidebar-header">
+        <h2><Sparkle size={18} weight="fill" /> 사주몽</h2>
+        <button class="new-chat-btn-small" onclick={startNewChat} title="새 대화">
+          <PencilSimple size={18} />
+        </button>
+      </div>
 
-    <button class="new-chat-btn" onclick={startNewChat}>
-      ➕ 새 대화
-    </button>
-
-    <div class="session-list">
-      {#each sessions as session}
-        <div
-          class="session-item"
-          class:active={session.id === currentSessionId}
-          onclick={() => selectSession(session.id)}
-        >
-          <div class="session-info">
-            <span class="session-title">{session.title}</span>
-            <span class="session-date">{formatDate(session.updatedAt)}</span>
+      <div class="session-list">
+        {#each sessions as session}
+          <div
+            class="session-item"
+            class:active={session.id === currentSessionId}
+            onclick={() => selectSession(session.id)}
+            onkeydown={(e) => e.key === 'Enter' && selectSession(session.id)}
+            role="button"
+            tabindex="0"
+          >
+            <div class="session-info">
+              <span class="session-title">{session.title}</span>
+              <span class="session-date">{formatDate(session.updatedAt)}</span>
+            </div>
+            <button class="delete-session-btn" onclick={(e) => deleteSession(session.id, e)}>
+              <Trash size={16} />
+            </button>
           </div>
-          <button class="delete-session-btn" onclick={(e) => deleteSession(session.id, e)}>
-            🗑️
-          </button>
-        </div>
-      {/each}
+        {/each}
 
-      {#if sessions.length === 0}
-        <div class="no-sessions">
-          아직 대화가 없습니다
-        </div>
-      {/if}
-    </div>
-  </aside>
+        {#if sessions.length === 0}
+          <div class="no-sessions">
+            아직 대화가 없습니다
+          </div>
+        {/if}
+      </div>
 
-  <!-- 사이드바 오버레이 -->
-  {#if showSidebar}
-    <div class="sidebar-overlay" onclick={() => showSidebar = false}></div>
-  {/if}
+    </aside>
 
-  <!-- 메인 영역 -->
-  <div class="main-area">
+    <!-- 사이드바 오버레이 (모바일) -->
+    {#if showSidebar}
+      <button class="sidebar-overlay" onclick={() => showSidebar = false} aria-label="사이드바 닫기"></button>
+    {/if}
+
+    <!-- 메인 영역 -->
+    <div class="main-area">
     <!-- 헤더 -->
     <header class="header">
       <div class="header-left">
         {#if currentView === 'chat'}
-          <button class="menu-btn" onclick={() => showSidebar = true}>☰</button>
+          <button class="menu-btn" onclick={() => showSidebar = true}><List size={22} /></button>
         {/if}
-        <h1 class="logo">🔮 사주몽</h1>
+        <h1 class="logo"><Sparkle size={22} weight="fill" /> 사주몽</h1>
       </div>
       <nav class="nav">
         <button
           class="nav-btn"
           class:active={currentView === 'chat'}
           onclick={() => currentView = 'chat'}
+          title="채팅"
         >
-          💬
+          <ChatCircle size={22} weight={currentView === 'chat' ? 'fill' : 'regular'} />
         </button>
         <button
           class="nav-btn"
           class:active={currentView === 'dashboard'}
           onclick={() => { currentView = 'dashboard'; loadDashboard(); }}
+          title="대시보드"
         >
-          📊
+          <ChartBar size={22} weight={currentView === 'dashboard' ? 'fill' : 'regular'} />
         </button>
         <button
           class="nav-btn"
           class:active={currentView === 'calendar'}
           onclick={() => { currentView = 'calendar'; loadCalendar(); }}
+          title="달력"
         >
-          📅
+          <Calendar size={22} weight={currentView === 'calendar' ? 'fill' : 'regular'} />
         </button>
         <button
           class="nav-btn"
           class:active={currentView === 'fortune'}
           onclick={() => { currentView = 'fortune'; loadFortune(); }}
+          title="오늘의 운세"
         >
-          ✨
+          <Sparkle size={22} weight={currentView === 'fortune' ? 'fill' : 'regular'} />
         </button>
         <button
           class="nav-btn"
           class:active={currentView === 'saju'}
           onclick={() => currentView = 'saju'}
+          title="사주 정보"
         >
-          📋
+          <ClipboardText size={22} weight={currentView === 'saju' ? 'fill' : 'regular'} />
         </button>
       </nav>
     </header>
@@ -609,7 +645,7 @@
       {#if error}
         <div class="error-banner">
           {error}
-          <button class="error-close" onclick={() => error = ''}>✕</button>
+          <button class="error-close" onclick={() => error = ''}><X size={16} /></button>
         </div>
       {/if}
 
@@ -618,7 +654,8 @@
         <div class="chat-view">
           {#if !hasUser}
             <div class="welcome-message">
-              <h2>🔮 사주몽에 오신 것을 환영합니다!</h2>
+              <div class="welcome-icon"><Sparkle size={48} weight="fill" /></div>
+              <h2>사주몽에 오신 것을 환영합니다!</h2>
               <p>AI 사주 상담을 시작하려면 먼저 사주 정보를 등록해주세요.</p>
               <button class="primary-btn" onclick={() => currentView = 'saju'}>
                 사주 등록하기
@@ -628,7 +665,7 @@
             <div class="chat-container" bind:this={chatContainer}>
               {#if messages.length === 0}
                 <div class="chat-welcome">
-                  <p>👋 안녕하세요, <strong>{userName}</strong>님!</p>
+                  <p>안녕하세요, <strong>{userName}</strong>님!</p>
                   <p>저는 사주몽이에요. 사주에 관해 궁금한 것이 있으면 무엇이든 물어보세요.</p>
                 </div>
               {/if}
@@ -645,7 +682,7 @@
                   {#if message.role === 'assistant' && index === messages.length - 1 && !isLoading}
                     <div class="message-actions">
                       <button class="action-btn" onclick={regenerateResponse} title="다시 생성">
-                        🔄 다시 생성
+                        <ArrowsClockwise size={14} /> 다시 생성
                       </button>
                     </div>
                   {/if}
@@ -677,7 +714,7 @@
                 onclick={sendMessage}
                 disabled={isLoading || !inputMessage.trim()}
               >
-                전송
+                <PaperPlaneTilt size={20} weight="fill" />
               </button>
             </div>
           {/if}
@@ -694,43 +731,63 @@
             </div>
           {:else if fortune}
             <div class="fortune-card">
-              <h2>✨ {fortune.date} 운세</h2>
+              <h2><Sparkle size={24} weight="fill" /> {fortune.date} 운세</h2>
               <p class="today-pillar">오늘의 일진: <strong>{fortune.todayPillar}</strong></p>
 
               <div class="fortune-scores">
-                {#each [
-                  { label: '🔮 총운', score: fortune.categories.overall },
-                  { label: '💕 애정운', score: fortune.categories.love },
-                  { label: '💰 금전운', score: fortune.categories.money },
-                  { label: '🏥 건강운', score: fortune.categories.health },
-                  { label: '💼 직장운', score: fortune.categories.work }
-                ] as item}
-                  <div class="score-item">
-                    <span class="score-label">{item.label}</span>
-                    <div class="score-bar">
-                      <div class="score-fill" style="width: {item.score}%; background-color: {getScoreColor(item.score)}"></div>
-                    </div>
-                    <span class="score-value">{item.score}점</span>
+                <div class="score-item">
+                  <span class="score-label"><Sparkle size={16} /> 총운</span>
+                  <div class="score-bar">
+                    <div class="score-fill" style="width: {fortune.categories.overall}%; background-color: {getScoreColor(fortune.categories.overall)}"></div>
                   </div>
-                {/each}
+                  <span class="score-value">{fortune.categories.overall}점</span>
+                </div>
+                <div class="score-item">
+                  <span class="score-label"><Heart size={16} /> 애정운</span>
+                  <div class="score-bar">
+                    <div class="score-fill" style="width: {fortune.categories.love}%; background-color: {getScoreColor(fortune.categories.love)}"></div>
+                  </div>
+                  <span class="score-value">{fortune.categories.love}점</span>
+                </div>
+                <div class="score-item">
+                  <span class="score-label"><CurrencyCircleDollar size={16} /> 금전운</span>
+                  <div class="score-bar">
+                    <div class="score-fill" style="width: {fortune.categories.money}%; background-color: {getScoreColor(fortune.categories.money)}"></div>
+                  </div>
+                  <span class="score-value">{fortune.categories.money}점</span>
+                </div>
+                <div class="score-item">
+                  <span class="score-label"><Heartbeat size={16} /> 건강운</span>
+                  <div class="score-bar">
+                    <div class="score-fill" style="width: {fortune.categories.health}%; background-color: {getScoreColor(fortune.categories.health)}"></div>
+                  </div>
+                  <span class="score-value">{fortune.categories.health}점</span>
+                </div>
+                <div class="score-item">
+                  <span class="score-label"><Briefcase size={16} /> 직장운</span>
+                  <div class="score-bar">
+                    <div class="score-fill" style="width: {fortune.categories.work}%; background-color: {getScoreColor(fortune.categories.work)}"></div>
+                  </div>
+                  <span class="score-value">{fortune.categories.work}점</span>
+                </div>
               </div>
 
               <div class="fortune-advice">
-                <h3>📝 오늘의 조언</h3>
+                <h3><Notepad size={18} /> 오늘의 조언</h3>
                 <p>{fortune.advice}</p>
               </div>
 
               <div class="lucky-items">
                 <div class="lucky-item">
-                  <span class="lucky-label">🎨 행운의 색</span>
+                  <span class="lucky-label"><Palette size={16} /> 행운의 색</span>
                   <span class="lucky-value">{fortune.luckyColor}</span>
                 </div>
                 <div class="lucky-item">
-                  <span class="lucky-label">🔢 행운의 숫자</span>
+                  <span class="lucky-label"><NumberSquareOne size={16} /> 행운의 숫자</span>
                   <span class="lucky-value">{fortune.luckyNumber}</span>
                 </div>
                 <div class="lucky-item">
-                  <span class="lucky-label">🧭 행운의 방향</span>
+                  <span class="lucky-label"><Compass size={16} /> 행운의 방향</span>
                   <span class="lucky-value">{fortune.luckyDirection}</span>
                 </div>
               </div>
@@ -748,7 +805,7 @@
       {#if currentView === 'saju'}
         <div class="saju-view">
           <div class="saju-form-card">
-            <h2>📋 사주 정보 {hasUser ? '수정' : '등록'}</h2>
+            <h2><ClipboardText size={22} /> 사주 정보 {hasUser ? '수정' : '등록'}</h2>
 
             <div class="form-group">
               <label for="name">이름</label>
@@ -809,7 +866,7 @@
 
           {#if sajuInfo}
             <div class="saju-info-card">
-              <h2>🔮 나의 사주팔자</h2>
+              <h2><Sparkle size={22} weight="fill" /> 나의 사주팔자</h2>
 
               <div class="pillars">
                 {#each [
@@ -826,7 +883,7 @@
               </div>
 
               <div class="animal-info">
-                <span>🐾 띠: {sajuInfo.animal}띠</span>
+                <span><PawPrint size={16} /> 띠: {sajuInfo.animal}띠</span>
               </div>
 
               <div class="ohaeng-chart">
@@ -886,7 +943,7 @@
                       <div class="character-sweat"></div>
                     {/if}
                   </div>
-                  <div class="character-crystal">🔮</div>
+                  <div class="character-crystal"><Sparkle size={32} weight="fill" /></div>
                 </div>
               </div>
 
@@ -920,49 +977,73 @@
 
             <!-- 오늘의 조언 -->
             <div class="dashboard-card advice-card">
-              <div class="advice-icon">💬</div>
+              <div class="advice-icon"><ChatCircle size={24} weight="fill" /></div>
               <p class="advice-text">"{dashboard.todayFortune.advice}"</p>
             </div>
 
             <!-- 카테고리별 운세 -->
             <div class="dashboard-card scores-card">
-              <h2>📊 오늘의 운세</h2>
+              <h2><ChartBar size={20} /> 오늘의 운세</h2>
               <div class="category-scores">
-                {#each [
-                  { label: '총운', score: dashboard.todayFortune.scores.overall, icon: '🔮' },
-                  { label: '애정', score: dashboard.todayFortune.scores.love, icon: '💕' },
-                  { label: '금전', score: dashboard.todayFortune.scores.money, icon: '💰' },
-                  { label: '건강', score: dashboard.todayFortune.scores.health, icon: '💪' },
-                  { label: '직장', score: dashboard.todayFortune.scores.work, icon: '💼' }
-                ] as cat}
-                  <div class="category-item">
-                    <span class="cat-icon">{cat.icon}</span>
-                    <span class="cat-label">{cat.label}</span>
-                    <div class="cat-bar">
-                      <div class="cat-fill" style="width: {cat.score}%; background: {getScoreColor(cat.score)}"></div>
-                    </div>
-                    <span class="cat-score">{cat.score}</span>
+                <div class="category-item">
+                  <span class="cat-icon"><Sparkle size={18} /></span>
+                  <span class="cat-label">총운</span>
+                  <div class="cat-bar">
+                    <div class="cat-fill" style="width: {dashboard.todayFortune.scores.overall}%; background: {getScoreColor(dashboard.todayFortune.scores.overall)}"></div>
                   </div>
-                {/each}
+                  <span class="cat-score">{dashboard.todayFortune.scores.overall}</span>
+                </div>
+                <div class="category-item">
+                  <span class="cat-icon"><Heart size={18} /></span>
+                  <span class="cat-label">애정</span>
+                  <div class="cat-bar">
+                    <div class="cat-fill" style="width: {dashboard.todayFortune.scores.love}%; background: {getScoreColor(dashboard.todayFortune.scores.love)}"></div>
+                  </div>
+                  <span class="cat-score">{dashboard.todayFortune.scores.love}</span>
+                </div>
+                <div class="category-item">
+                  <span class="cat-icon"><CurrencyCircleDollar size={18} /></span>
+                  <span class="cat-label">금전</span>
+                  <div class="cat-bar">
+                    <div class="cat-fill" style="width: {dashboard.todayFortune.scores.money}%; background: {getScoreColor(dashboard.todayFortune.scores.money)}"></div>
+                  </div>
+                  <span class="cat-score">{dashboard.todayFortune.scores.money}</span>
+                </div>
+                <div class="category-item">
+                  <span class="cat-icon"><Heartbeat size={18} /></span>
+                  <span class="cat-label">건강</span>
+                  <div class="cat-bar">
+                    <div class="cat-fill" style="width: {dashboard.todayFortune.scores.health}%; background: {getScoreColor(dashboard.todayFortune.scores.health)}"></div>
+                  </div>
+                  <span class="cat-score">{dashboard.todayFortune.scores.health}</span>
+                </div>
+                <div class="category-item">
+                  <span class="cat-icon"><Briefcase size={18} /></span>
+                  <span class="cat-label">직장</span>
+                  <div class="cat-bar">
+                    <div class="cat-fill" style="width: {dashboard.todayFortune.scores.work}%; background: {getScoreColor(dashboard.todayFortune.scores.work)}"></div>
+                  </div>
+                  <span class="cat-score">{dashboard.todayFortune.scores.work}</span>
+                </div>
               </div>
             </div>
 
             <!-- 행운 아이템 -->
             <div class="dashboard-card lucky-card">
-              <h2>🍀 오늘의 행운</h2>
+              <h2><Sparkle size={20} weight="fill" /> 오늘의 행운</h2>
               <div class="lucky-grid">
                 <div class="lucky-item-big">
-                  <span class="lucky-icon">🎨</span>
+                  <span class="lucky-icon"><Palette size={24} /></span>
                   <span class="lucky-label">행운의 색</span>
                   <span class="lucky-value">{dashboard.todayFortune.lucky.color}</span>
                 </div>
                 <div class="lucky-item-big">
-                  <span class="lucky-icon">🔢</span>
+                  <span class="lucky-icon"><NumberSquareOne size={24} /></span>
                   <span class="lucky-label">행운의 숫자</span>
                   <span class="lucky-value">{dashboard.todayFortune.lucky.number}</span>
                 </div>
                 <div class="lucky-item-big">
-                  <span class="lucky-icon">🧭</span>
+                  <span class="lucky-icon"><Compass size={24} /></span>
                   <span class="lucky-label">행운의 방향</span>
                   <span class="lucky-value">{dashboard.todayFortune.lucky.direction}</span>
                 </div>
@@ -971,7 +1052,7 @@
 
             <!-- 나의 기운 분석 (축소) -->
             <div class="dashboard-card strength-card-mini">
-              <h2>⚖️ 나의 기운</h2>
+              <h2><Scales size={20} /> 나의 기운</h2>
               <div class="strength-mini-content">
                 <div class="strength-mini-gauge">
                   <div class="mini-gauge-bar">
@@ -992,7 +1073,7 @@
 
             <!-- 용신 요약 -->
             <div class="dashboard-card yongshin-mini">
-              <h2>🎯 필요한 기운</h2>
+              <h2><Target size={20} /> 필요한 기운</h2>
               <div class="yongshin-summary">
                 <div class="yong-item good">
                   <span class="yong-role">용신</span>
@@ -1011,7 +1092,7 @@
 
             <!-- 오행 분포 (컴팩트) -->
             <div class="dashboard-card elements-mini">
-              <h2>🌿 오행 분포</h2>
+              <h2><Leaf size={20} /> 오행 분포</h2>
               <div class="elements-row">
                 {#each [
                   { name: '목', value: dashboard.elements.wood, color: '#22c55e' },
@@ -1048,9 +1129,9 @@
           {:else if calendarData}
             <div class="calendar-card">
               <div class="calendar-header">
-                <button class="calendar-nav-btn" onclick={prevMonth}>◀</button>
+                <button class="calendar-nav-btn" onclick={prevMonth}><CaretLeft size={20} /></button>
                 <h2>{calendarData.year}년 {calendarData.month}월</h2>
-                <button class="calendar-nav-btn" onclick={nextMonth}>▶</button>
+                <button class="calendar-nav-btn" onclick={nextMonth}><CaretRight size={20} /></button>
               </div>
 
               <div class="calendar-weekdays">
@@ -1077,6 +1158,9 @@
                     class:sunday={dayOfWeek === 0}
                     class:saturday={dayOfWeek === 6}
                     onclick={() => selectedCalendarDate = fortune?.date || null}
+                    onkeydown={(e) => e.key === 'Enter' && (selectedCalendarDate = fortune?.date || null)}
+                    role="button"
+                    tabindex="0"
                   >
                     <span class="day-number">{day}</span>
                     {#if fortune}
@@ -1123,6 +1207,7 @@
         </div>
       {/if}
     </main>
+    </div>
   </div>
 </div>
 
@@ -1144,85 +1229,67 @@
 </script>
 
 <style>
-  /* ==================== Dieter Rams Style - Less but better ==================== */
+  /* ==================== GPT Style Layout ==================== */
+
+  .app-wrapper {
+    height: 100vh;
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    background: var(--gray-100);
+  }
+
   .app-container {
     display: flex;
+    width: 100%;
+    max-width: 1400px;
     height: 100vh;
     background: var(--bg);
+    box-shadow: var(--shadow-lg);
+    position: relative;
+    overflow: hidden;
   }
 
   /* ==================== Sidebar ==================== */
   .sidebar {
-    position: fixed;
-    left: 0;
-    top: 0;
-    width: 320px;
-    height: 100vh;
-    background: var(--surface);
-    border-right: 1px solid var(--border);
-    transform: translateX(-100%);
-    transition: transform 0.25s ease;
-    z-index: 100;
+    width: 280px;
+    min-width: 280px;
+    height: 100%;
+    background: var(--gray-900);
+    color: var(--white);
     display: flex;
     flex-direction: column;
-    box-shadow: var(--shadow-lg);
-  }
-
-  .sidebar.open {
-    transform: translateX(0);
-  }
-
-  .sidebar-overlay {
-    position: fixed;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.3);
-    z-index: 99;
-    backdrop-filter: blur(2px);
+    transition: margin-left 0.3s ease;
   }
 
   .sidebar-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: var(--space-5) var(--space-6);
-    border-bottom: 1px solid var(--border);
+    padding: var(--space-4) var(--space-4);
+    border-bottom: 1px solid var(--gray-700);
   }
 
   .sidebar-header h2 {
-    font-size: 13px;
+    font-size: 16px;
     font-weight: 600;
-    color: var(--text-secondary);
-    letter-spacing: 0.02em;
+    color: var(--white);
   }
 
-  .close-btn {
-    width: 32px;
-    height: 32px;
+  .new-chat-btn-small {
+    width: 36px;
+    height: 36px;
     display: flex;
     align-items: center;
     justify-content: center;
-    border-radius: var(--radius-sm);
-    color: var(--text-secondary);
-    font-size: 14px;
-  }
-
-  .close-btn:hover {
-    background: var(--gray-100);
-    color: var(--text);
-  }
-
-  .new-chat-btn {
-    margin: var(--space-4);
-    padding: var(--space-3) var(--space-4);
-    background: var(--gray-800);
-    color: var(--white);
-    font-weight: 500;
-    font-size: 14px;
     border-radius: var(--radius-md);
+    background: var(--gray-700);
+    color: var(--white);
+    font-size: 16px;
   }
 
-  .new-chat-btn:hover {
-    background: var(--gray-700);
+  .new-chat-btn-small:hover {
+    background: var(--gray-600);
   }
 
   .session-list {
@@ -1232,21 +1299,27 @@
   }
 
   .session-item {
+    width: 100%;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: var(--space-3) var(--space-4);
+    padding: var(--space-3) var(--space-3);
     cursor: pointer;
-    border-radius: var(--radius-sm);
+    border-radius: var(--radius-md);
     margin-bottom: var(--space-1);
+    background: transparent;
+    border: none;
+    color: var(--gray-300);
+    text-align: left;
   }
 
   .session-item:hover {
-    background: var(--gray-100);
+    background: var(--gray-700);
+    color: var(--white);
   }
 
   .session-item.active {
-    background: var(--gray-800);
+    background: var(--gray-700);
     color: var(--white);
   }
 
@@ -1265,12 +1338,14 @@
   }
 
   .session-date {
+    display: block;
     font-size: 12px;
-    color: var(--text-muted);
+    color: var(--gray-500);
     margin-top: 2px;
   }
 
-  .session-item.active .session-date {
+  .session-item.active .session-date,
+  .session-item:hover .session-date {
     color: var(--gray-400);
   }
 
@@ -1283,6 +1358,8 @@
     opacity: 0;
     font-size: 12px;
     border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--gray-400);
   }
 
   .session-item:hover .delete-session-btn {
@@ -1290,14 +1367,19 @@
   }
 
   .delete-session-btn:hover {
-    background: var(--gray-200);
+    background: var(--gray-600);
+    color: var(--white);
   }
 
   .no-sessions {
     text-align: center;
-    padding: var(--space-12);
-    color: var(--text-muted);
+    padding: var(--space-8);
+    color: var(--gray-500);
     font-size: 14px;
+  }
+
+  .sidebar-overlay {
+    display: none;
   }
 
   /* ==================== Main Area ==================== */
@@ -1305,9 +1387,44 @@
     flex: 1;
     display: flex;
     flex-direction: column;
-    max-width: 800px;
-    margin: 0 auto;
-    width: 100%;
+    min-width: 0;
+    background: var(--bg);
+  }
+
+  /* ==================== Mobile Responsive ==================== */
+  @media (max-width: 768px) {
+    .app-wrapper {
+      background: var(--bg);
+    }
+
+    .app-container {
+      max-width: 100%;
+      box-shadow: none;
+    }
+
+    .sidebar {
+      position: fixed;
+      left: 0;
+      top: 0;
+      height: 100vh;
+      z-index: 100;
+      transform: translateX(-100%);
+      box-shadow: var(--shadow-lg);
+    }
+
+    .sidebar.open {
+      transform: translateX(0);
+    }
+
+    .sidebar-overlay {
+      display: block;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.5);
+      z-index: 99;
+      border: none;
+      cursor: pointer;
+    }
   }
 
   /* ==================== Header ==================== */
@@ -1329,7 +1446,7 @@
   .menu-btn {
     width: 40px;
     height: 40px;
-    display: flex;
+    display: none;  /* 데스크탑에서 숨김 */
     align-items: center;
     justify-content: center;
     border-radius: var(--radius-md);
@@ -1340,6 +1457,12 @@
   .menu-btn:hover {
     background: var(--gray-100);
     color: var(--text);
+  }
+
+  @media (max-width: 768px) {
+    .menu-btn {
+      display: flex;  /* 모바일에서만 보임 */
+    }
   }
 
   .logo {
@@ -1423,6 +1546,11 @@
     justify-content: center;
     padding: var(--space-12);
     text-align: center;
+  }
+
+  .welcome-icon {
+    color: var(--accent);
+    margin-bottom: var(--space-4);
   }
 
   .welcome-message h2 {
@@ -2729,14 +2857,6 @@
 
     .fortune-view, .saju-view, .dashboard-view, .calendar-view {
       padding: var(--space-4);
-    }
-
-    .strength-details {
-      grid-template-columns: 1fr;
-    }
-
-    .yongshin-grid {
-      grid-template-columns: repeat(2, 1fr);
     }
 
     .selected-fortune-details {

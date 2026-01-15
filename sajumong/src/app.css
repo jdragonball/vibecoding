@@ -1,5 +1,4 @@
-/* Dieter Rams Inspired - Less but better */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
+/* Clean Modern Design */
 
 * {
   margin: 0;
@@ -63,12 +62,13 @@
 
 html, body {
   height: 100%;
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-family: 'Noto Sans KR', -apple-system, BlinkMacSystemFont, sans-serif;
   font-size: 15px;
   background: var(--bg);
   color: var(--text);
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
+  word-break: keep-all;
 }
 
 ::-webkit-scrollbar {
