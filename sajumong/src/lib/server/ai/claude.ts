@@ -6,6 +6,7 @@ import { analyzeSaju, type AnalysisResult } from '../saju/analysis';
 import { analyzeLuck, generateLuckContextForAI } from '../saju/luck';
 import { solarTermSeries } from '../saju/astro';
 import { ELEMENT_KO } from '../saju/ganji';
+import type { Locale } from '$lib/i18n/types';
 
 // Claude 클라이언트 초기화
 let client: Anthropic | null = null;
@@ -20,7 +21,9 @@ function getClient(): Anthropic {
 }
 
 // ============ 정적 시스템 프롬프트 (캐시 대상) ============
-const STATIC_SYSTEM_PROMPT = `당신은 "사주몽"이라는 이름의 사주 전문 상담사입니다. 사용자의 친근한 친구이자 믿음직한 사주 전문가입니다.
+
+// 한국어 시스템 프롬프트
+const STATIC_SYSTEM_PROMPT_KO = `당신은 "사주몽"이라는 이름의 사주 전문 상담사입니다. 사용자의 친근한 친구이자 믿음직한 사주 전문가입니다.
 
 [역할과 성격]
 - 전문적이면서도 친근한 사주 상담사
@@ -81,6 +84,72 @@ const STATIC_SYSTEM_PROMPT = `당신은 "사주몽"이라는 이름의 사주 �
 **핵심 원칙: 거절보다는 사주로 연결하는 것을 우선시하세요!**
 사용자의 일상적인 말도 사주적 관점에서 해석하면 의미 있는 조언이 될 수 있습니다.`;
 
+// 영어 시스템 프롬프트
+const STATIC_SYSTEM_PROMPT_EN = `You are "Sajumong", a professional Saju (Korean Four Pillars astrology) consultant. You're a friendly companion and trustworthy fortune-telling expert for the user.
+
+[Role and Personality]
+- Professional yet friendly Saju consultant
+- Provide accurate interpretations based on Korean traditional Myeongrihak (명리학, destiny studies)
+- A warm friend who genuinely listens to user's concerns
+- An advisor who gives realistic yet hopeful guidance
+
+[Saju Interpretation Guidelines]
+1. Interpret Saju centered on Ilgan (日干, Day Master)
+2. Analyze Ohaeng (五行, Five Elements) balance and their creative/destructive relationships
+3. Yeju (年柱, Year Pillar) represents ancestors/childhood, Wolju (月柱, Month Pillar) represents parents/youth, Ilju (日柱, Day Pillar) represents self/middle age, Siju (時柱, Hour Pillar) represents children/later years
+4. Emphasize that Saju is just a reference - effort and choices matter more
+
+[Sipseong (十星, Ten Gods) Interpretation]
+- Bigyeon/Geopjae (比肩/劫財): siblings, friends, competitors
+- Siksin/Sanggwan (食神/傷官): expressiveness, talent, children
+- Pyeonjae/Jeongjae (偏財/正財): wealth, father
+- Pyeongwan/Jeonggwan (偏官/正官): career, honor, husband (for women)
+- Pyeonin/Jeongin (偏印/正印): studies, mother
+
+[Conversation Style]
+- Use casual, friendly English (like texting a close friend)
+- No emojis
+- Minimize exclamation marks (!) - prefer periods (.) or question marks (?)
+- **Short, concise answers** - 1-2 sentences, max 3 sentences
+- Keep it light, like chatting with a friend
+- Use Saju terms only when necessary, with brief explanations in parentheses
+
+[Important Notes]
+- No overly negative predictions or threatening statements
+- No definitive advice on medical/legal professional matters
+- Remember Saju is a reference, not 100% destiny
+- Avoid superstitious expressions
+- Don't be too stiff or authoritative
+
+[Conversation Scope - Flexibly Connect to Saju]
+You are a Saju consultant. Try to interpret all conversations from a Saju/Myeongrihak perspective to provide helpful guidance.
+
+**Topics to actively connect to Saju:**
+- "I'm hungry" → Today's Siksin (食神) energy, lucky food based on Ohaeng
+- "I'm tired" → Today's energy flow, condition management advice
+- "What should I eat today?" → Food matching Ohaeng, lucky color/direction
+- "I'm bored" → Good activities for today, lucky direction
+- "Should I change jobs?" → Career fortune, movement/change fortune analysis
+- "Dating isn't working" → Love fortune, timing of connections this year
+- "I'm broke" → Money fortune, wealth fortune analysis
+- "I fought with my friend" → Relationship fortune, Bigyeop/Inseong analysis
+
+**Questions to decline (only those impossible to connect to Saju):**
+- Technical definitions: "What is CPU?", "Write Python code", "How to use React"
+- Academic definitions: "What is calculus?", "Explain quantum mechanics"
+- Questions about AI/chatbot: "What are you made of?", "Are you GPT?"
+
+Decline example:
+"I'm Sajumong, a Saju consultant! That's not my specialty. Instead, want to talk about today's energy or your fortune?"
+
+**Core principle: Prioritize connecting to Saju rather than declining!**
+Even everyday user talk can become meaningful advice when interpreted from a Saju perspective.`;
+
+// locale별 시스템 프롬프트 선택
+function getSystemPrompt(locale: Locale): string {
+  return locale === 'en' ? STATIC_SYSTEM_PROMPT_EN : STATIC_SYSTEM_PROMPT_KO;
+}
+
 // 분석 결과를 문자열로 변환
 function formatAnalysisResult(analysis: AnalysisResult): string {
   const { strength, yongshin, relations } = analysis;
@@ -122,10 +191,21 @@ interface DynamicContext {
   dateContext: string;
 }
 
+// 오행 영어 이름
+const ELEMENT_EN: Record<string, string> = {
+  '목': 'Wood',
+  '화': 'Fire',
+  '토': 'Earth',
+  '금': 'Metal',
+  '수': 'Water'
+};
+
 // 사주 정보 컨텍스트 생성
-function createSajuContext(sajuData: SajuData | null, user: User | null): string {
+function createSajuContext(sajuData: SajuData | null, user: User | null, locale: Locale = 'ko'): string {
   if (!sajuData || !user) {
-    return '아직 사용자의 사주 정보가 등록되지 않았습니다. 사용자에게 생년월일시를 물어보고 사주를 등록하도록 안내해주세요.';
+    return locale === 'en'
+      ? 'User\'s Saju information is not registered yet. Please ask the user for their birth date and time, and guide them to register their Saju.'
+      : '아직 사용자의 사주 정보가 등록되지 않았습니다. 사용자에게 생년월일시를 물어보고 사주를 등록하도록 안내해주세요.';
   }
 
   // 사주 계산 및 분석
@@ -146,6 +226,27 @@ function createSajuContext(sajuData: SajuData | null, user: User | null): string
   const kishinElement = analysis.yongshin.roles.ki.element || null;
   const luckAnalysis = analyzeLuck(sajuResult, events, yongshinElement, kishinElement);
   const luckContext = generateLuckContextForAI(luckAnalysis, yongshinElement);
+
+  const elementName = locale === 'en'
+    ? ELEMENT_EN[ELEMENT_KO[analysis.strength.dayElement]] || ELEMENT_KO[analysis.strength.dayElement]
+    : ELEMENT_KO[analysis.strength.dayElement];
+
+  if (locale === 'en') {
+    return `[User's Saju Information]
+- Name: ${user.name}
+- Birth Date/Time: ${user.birthYear}/${user.birthMonth}/${user.birthDay} ${user.birthHour}:00
+- Gender: ${user.gender === 'male' ? 'Male' : 'Female'}
+- Four Pillars: ${sajuData.yearPillar} ${sajuData.monthPillar} ${sajuData.dayPillar} ${sajuData.hourPillar}
+- Day Master: ${sajuData.dayPillar[0]} (${elementName})
+- Zodiac: ${sajuData.animal}
+
+[Saju Analysis]
+- Strength: ${analysis.strength.isStrong ? 'Singang (Strong)' : 'Sinyak (Weak)'}
+- Yongshin (Use God): ${analysis.yongshin.roles.yong.name || 'None'}
+- Kishin (Avoid God): ${analysis.yongshin.roles.ki.name || 'None'}
+
+${luckContext}`;
+  }
 
   return `[사용자 사주 정보]
 - 이름: ${user.name}
@@ -168,35 +269,51 @@ function createDynamicContext(
   sajuData: SajuData | null,
   user: User | null,
   summary: string | null = null,
-  memories: string[] = []
+  memories: string[] = [],
+  locale: Locale = 'ko'
 ): string {
   const parts: string[] = [];
 
   // 사주 정보
-  parts.push(createSajuContext(sajuData, user));
+  parts.push(createSajuContext(sajuData, user, locale));
 
   // 이전 대화 요약 (있는 경우)
   if (summary) {
-    parts.push(`\n[이전 대화 요약]\n${summary}`);
+    const label = locale === 'en' ? '[Previous Conversation Summary]' : '[이전 대화 요약]';
+    parts.push(`\n${label}\n${summary}`);
   }
 
   // 사용자 메모리 (있는 경우)
   if (memories.length > 0) {
-    parts.push(`\n[사용자에 대해 기억하는 것들]\n${memories.map(m => `- ${m}`).join('\n')}`);
+    const label = locale === 'en' ? '[Things to Remember About User]' : '[사용자에 대해 기억하는 것들]';
+    parts.push(`\n${label}\n${memories.map(m => `- ${m}`).join('\n')}`);
   }
 
   // 오늘 날짜와 현재 시간
   const now = new Date();
   const hour = now.getHours();
-  let timeOfDay = '';
-  if (hour >= 5 && hour < 9) timeOfDay = '아침';
-  else if (hour >= 9 && hour < 12) timeOfDay = '오전';
-  else if (hour >= 12 && hour < 14) timeOfDay = '점심';
-  else if (hour >= 14 && hour < 18) timeOfDay = '오후';
-  else if (hour >= 18 && hour < 21) timeOfDay = '저녁';
-  else timeOfDay = '밤';
 
-  parts.push(`\n현재: ${now.toLocaleDateString('ko-KR')} ${now.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })} (${timeOfDay})`);
+  if (locale === 'en') {
+    let timeOfDay = '';
+    if (hour >= 5 && hour < 9) timeOfDay = 'morning';
+    else if (hour >= 9 && hour < 12) timeOfDay = 'late morning';
+    else if (hour >= 12 && hour < 14) timeOfDay = 'midday';
+    else if (hour >= 14 && hour < 18) timeOfDay = 'afternoon';
+    else if (hour >= 18 && hour < 21) timeOfDay = 'evening';
+    else timeOfDay = 'night';
+
+    parts.push(`\nCurrent: ${now.toLocaleDateString('en-US')} ${now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })} (${timeOfDay})`);
+  } else {
+    let timeOfDay = '';
+    if (hour >= 5 && hour < 9) timeOfDay = '아침';
+    else if (hour >= 9 && hour < 12) timeOfDay = '오전';
+    else if (hour >= 12 && hour < 14) timeOfDay = '점심';
+    else if (hour >= 14 && hour < 18) timeOfDay = '오후';
+    else if (hour >= 18 && hour < 21) timeOfDay = '저녁';
+    else timeOfDay = '밤';
+
+    parts.push(`\n현재: ${now.toLocaleDateString('ko-KR')} ${now.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })} (${timeOfDay})`);
+  }
 
   return parts.join('\n');
 }
@@ -213,6 +330,7 @@ function formatMessages(chatHistory: ChatMessage[]): Anthropic.MessageParam[] {
 export interface ChatResponseOptions {
   summary?: string | null;      // 이전 대화 요약
   memories?: string[];          // 사용자 메모리
+  locale?: Locale;              // 언어 설정
 }
 
 // 채팅 응답 생성 (Prompt Caching 적용)
@@ -225,10 +343,10 @@ export async function generateChatResponse(
 ): Promise<string> {
   const client = getClient();
 
-  const { summary = null, memories = [] } = options;
+  const { summary = null, memories = [], locale = 'ko' } = options;
 
   // 동적 컨텍스트 생성
-  const dynamicContext = createDynamicContext(sajuData, user, summary, memories);
+  const dynamicContext = createDynamicContext(sajuData, user, summary, memories, locale);
 
   const messages = formatMessages(chatHistory);
 
@@ -246,7 +364,7 @@ export async function generateChatResponse(
       system: [
         {
           type: 'text',
-          text: STATIC_SYSTEM_PROMPT,
+          text: getSystemPrompt(locale),
           cache_control: { type: 'ephemeral' }  // 5분 캐시
         },
         {
@@ -295,10 +413,10 @@ export async function* generateChatResponseStream(
 ): AsyncGenerator<string, string, unknown> {
   const client = getClient();
 
-  const { summary = null, memories = [] } = options;
+  const { summary = null, memories = [], locale = 'ko' } = options;
 
   // 동적 컨텍스트 생성
-  const dynamicContext = createDynamicContext(sajuData, user, summary, memories);
+  const dynamicContext = createDynamicContext(sajuData, user, summary, memories, locale);
 
   const messages = formatMessages(chatHistory);
 
@@ -317,7 +435,7 @@ export async function* generateChatResponseStream(
       system: [
         {
           type: 'text',
-          text: STATIC_SYSTEM_PROMPT,
+          text: getSystemPrompt(locale),
           cache_control: { type: 'ephemeral' }
         },
         {
@@ -356,11 +474,34 @@ export async function generateFortuneAdvice(
     money: number;
     health: number;
     work: number;
-  }
+  },
+  locale: Locale = 'ko'
 ): Promise<string> {
   const client = getClient();
 
-  const prompt = `오늘의 운세 조언을 생성해주세요.
+  const prompt = locale === 'en'
+    ? `Please generate today's fortune advice.
+
+[User's Saju]
+- Four Pillars: ${sajuData.yearPillar} ${sajuData.monthPillar} ${sajuData.dayPillar} ${sajuData.hourPillar}
+- Day Master: ${sajuData.dayPillar[0]}
+- Zodiac: ${sajuData.animal}
+
+[Today's Pillar]
+${todayPillar}
+
+[Fortune Scores]
+- Overall: ${categories.overall} points
+- Love: ${categories.love} points
+- Money: ${categories.money} points
+- Health: ${categories.health} points
+- Work/Study: ${categories.work} points
+
+Based on this information, write specific advice for today in 3-4 sentences.
+- Positive and practical advice
+- Reflect Ohaeng (Five Elements) creative/destructive relationships
+- Include specific action suggestions`
+    : `오늘의 운세 조언을 생성해주세요.
 
 [사용자 사주]
 - 사주팔자: ${sajuData.yearPillar} ${sajuData.monthPillar} ${sajuData.dayPillar} ${sajuData.hourPillar}
@@ -382,6 +523,10 @@ ${todayPillar}
 - 오행의 상생상극 관계 반영
 - 구체적인 행동 제안 포함`;
 
+  const defaultMessage = locale === 'en'
+    ? 'Wishing you a wonderful day filled with good fortune.'
+    : '오늘 하루도 좋은 일이 가득하길 바랍니다.';
+
   try {
     const response = await client.messages.create({
       model: 'claude-sonnet-4-20250514',
@@ -399,10 +544,10 @@ ${todayPillar}
       return textContent.text;
     }
 
-    return '오늘 하루도 좋은 일이 가득하길 바랍니다.';
+    return defaultMessage;
   } catch (error) {
     console.error('운세 조언 생성 오류:', error);
-    return '오늘 하루도 좋은 일이 가득하길 바랍니다.';
+    return defaultMessage;
   }
 }
 

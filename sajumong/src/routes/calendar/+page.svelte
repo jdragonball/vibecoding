@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { CaretLeft, CaretRight } from 'phosphor-svelte';
-  import { hasUser, isLoading, error } from '$lib/stores';
+  import { hasUser, isLoading, error, t, locale } from '$lib/stores';
 
   type CalendarData = {
     year: number;
@@ -34,7 +34,7 @@
 
   async function loadCalendar(year?: number, month?: number) {
     if (!$hasUser) {
-      $error = '먼저 사주를 등록해주세요.';
+      $error = $t.errors.registerSajuFirst;
       goto('/saju');
       return;
     }
@@ -47,16 +47,16 @@
       const targetYear = year ?? now.getFullYear();
       const targetMonth = month ?? now.getMonth() + 1;
 
-      const res = await fetch(`/api/calendar?year=${targetYear}&month=${targetMonth}`);
+      const res = await fetch(`/api/calendar?year=${targetYear}&month=${targetMonth}&locale=${$locale}`);
       const data = await res.json();
 
       if (data.success) {
         calendarData = data.calendar;
       } else {
-        $error = data.message || '달력을 불러오는 데 실패했습니다.';
+        $error = data.message || $t.errors.loadFailed;
       }
     } catch (e) {
-      $error = '서버 오류가 발생했습니다.';
+      $error = $t.errors.serverError;
     } finally {
       $isLoading = false;
     }
@@ -93,18 +93,18 @@
   {#if $isLoading}
     <div class="loading-spinner">
       <div class="spinner"></div>
-      <p>달력을 불러오는 중...</p>
+      <p>{$t.common.loading}</p>
     </div>
   {:else if calendarData}
     <div class="calendar-card">
       <div class="calendar-header">
         <button class="calendar-nav-btn" onclick={prevMonth}><CaretLeft size={20} /></button>
-        <h2>{calendarData.year}년 {calendarData.month}월</h2>
+        <h2>{$locale === 'ko' ? `${calendarData.year}년 ${calendarData.month}월` : `${['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][calendarData.month]} ${calendarData.year}`}</h2>
         <button class="calendar-nav-btn" onclick={nextMonth}><CaretRight size={20} /></button>
       </div>
 
       <div class="calendar-weekdays">
-        {#each ['일', '월', '화', '수', '목', '금', '토'] as day, i}
+        {#each $t.calendar.weekdays as day, i}
           <div class="weekday" class:sunday={i === 0} class:saturday={i === 6}>{day}</div>
         {/each}
       </div>
@@ -149,17 +149,17 @@
           <h3>{selectedCalendarDate}</h3>
           <div class="selected-fortune-details">
             <div class="fortune-detail-item">
-              <span class="fortune-detail-label">일진</span>
+              <span class="fortune-detail-label">{$t.calendar.pillar}</span>
               <span class="fortune-detail-value">{selectedFortune.todayPillar}</span>
             </div>
             <div class="fortune-detail-item">
-              <span class="fortune-detail-label">총운</span>
+              <span class="fortune-detail-label">{$t.fortune.overall}</span>
               <span class="fortune-detail-value" style="color: {getDayScoreColor(selectedFortune.overallScore)}">
-                {selectedFortune.overallScore}점
+                {$t.common.score.replace('{n}', String(selectedFortune.overallScore))}
               </span>
             </div>
             <div class="fortune-detail-item">
-              <span class="fortune-detail-label">행운의 색</span>
+              <span class="fortune-detail-label">{$t.fortune.luckyColor}</span>
               <span class="fortune-detail-value">{selectedFortune.luckyColor}</span>
             </div>
           </div>
@@ -168,8 +168,8 @@
     {/if}
   {:else}
     <div class="empty-calendar">
-      <p>달력 정보를 불러올 수 없습니다.</p>
-      <button class="primary-btn" onclick={() => loadCalendar()}>다시 시도</button>
+      <p>{$t.errors.loadFailed}</p>
+      <button class="primary-btn" onclick={() => loadCalendar()}>{$t.common.retry}</button>
     </div>
   {/if}
 </div>

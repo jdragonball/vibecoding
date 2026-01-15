@@ -16,7 +16,7 @@
     Target,
     Leaf
   } from 'phosphor-svelte';
-  import { hasUser, isLoading, error } from '$lib/stores';
+  import { hasUser, isLoading, error, t, locale } from '$lib/stores';
 
   // 대시보드 데이터 타입
   type Dashboard = {
@@ -68,7 +68,7 @@
 
   async function loadDashboard() {
     if (!$hasUser) {
-      $error = '먼저 사주를 등록해주세요.';
+      $error = $t.errors.registerSajuFirst;
       goto('/saju');
       return;
     }
@@ -77,16 +77,16 @@
     $error = '';
 
     try {
-      const res = await fetch('/api/dashboard');
+      const res = await fetch(`/api/dashboard?locale=${$locale}`);
       const data = await res.json();
 
       if (data.success) {
         dashboard = data.dashboard;
       } else {
-        $error = data.message || '대시보드를 불러오는 데 실패했습니다.';
+        $error = data.message || $t.errors.loadFailed;
       }
     } catch (e) {
-      $error = '서버 오류가 발생했습니다.';
+      $error = $t.errors.serverError;
     } finally {
       $isLoading = false;
     }
@@ -101,7 +101,7 @@
   {#if $isLoading}
     <div class="loading-spinner">
       <div class="spinner"></div>
-      <p>대시보드를 불러오는 중...</p>
+      <p>{$t.common.loading}</p>
     </div>
   {:else if dashboard}
     <!-- 오늘의 나 - 사주몽 캐릭터 -->
@@ -142,7 +142,7 @@
           </svg>
           <div class="score-text">
             <span class="score-number">{dashboard.todayFortune.scores.overall}</span>
-            <span class="score-unit">점</span>
+            <span class="score-unit">{$locale === 'ko' ? '점' : 'pts'}</span>
           </div>
         </div>
       </div>
@@ -150,7 +150,7 @@
       <p class="hero-description">{dashboard.todayFortune.mood.description}</p>
 
       <div class="hero-pillar">
-        <span class="pillar-label">오늘의 일진</span>
+        <span class="pillar-label">{$t.fortune.todayPillar}</span>
         <span class="pillar-value">{dashboard.todayFortune.pillar}</span>
         <span class="pillar-elements">({dashboard.todayFortune.pillarElement.stem}/{dashboard.todayFortune.pillarElement.branch})</span>
       </div>
@@ -164,11 +164,11 @@
 
     <!-- 카테고리별 운세 -->
     <div class="dashboard-card scores-card">
-      <h2><ChartBar size={20} /> 오늘의 운세</h2>
+      <h2><ChartBar size={20} /> {$t.fortune.todayFortune}</h2>
       <div class="category-scores">
         <div class="category-item">
           <span class="cat-icon"><Sparkle size={18} /></span>
-          <span class="cat-label">총운</span>
+          <span class="cat-label">{$t.fortune.overall}</span>
           <div class="cat-bar">
             <div class="cat-fill" style="width: {dashboard.todayFortune.scores.overall}%; background: {getScoreColor(dashboard.todayFortune.scores.overall)}"></div>
           </div>
@@ -176,7 +176,7 @@
         </div>
         <div class="category-item">
           <span class="cat-icon"><Heart size={18} /></span>
-          <span class="cat-label">애정</span>
+          <span class="cat-label">{$t.fortune.love}</span>
           <div class="cat-bar">
             <div class="cat-fill" style="width: {dashboard.todayFortune.scores.love}%; background: {getScoreColor(dashboard.todayFortune.scores.love)}"></div>
           </div>
@@ -184,7 +184,7 @@
         </div>
         <div class="category-item">
           <span class="cat-icon"><CurrencyCircleDollar size={18} /></span>
-          <span class="cat-label">금전</span>
+          <span class="cat-label">{$t.fortune.money}</span>
           <div class="cat-bar">
             <div class="cat-fill" style="width: {dashboard.todayFortune.scores.money}%; background: {getScoreColor(dashboard.todayFortune.scores.money)}"></div>
           </div>
@@ -192,7 +192,7 @@
         </div>
         <div class="category-item">
           <span class="cat-icon"><Heartbeat size={18} /></span>
-          <span class="cat-label">건강</span>
+          <span class="cat-label">{$t.fortune.health}</span>
           <div class="cat-bar">
             <div class="cat-fill" style="width: {dashboard.todayFortune.scores.health}%; background: {getScoreColor(dashboard.todayFortune.scores.health)}"></div>
           </div>
@@ -200,7 +200,7 @@
         </div>
         <div class="category-item">
           <span class="cat-icon"><Briefcase size={18} /></span>
-          <span class="cat-label">직장</span>
+          <span class="cat-label">{$t.fortune.work}</span>
           <div class="cat-bar">
             <div class="cat-fill" style="width: {dashboard.todayFortune.scores.work}%; background: {getScoreColor(dashboard.todayFortune.scores.work)}"></div>
           </div>
@@ -211,21 +211,21 @@
 
     <!-- 행운 아이템 -->
     <div class="dashboard-card lucky-card">
-      <h2><Sparkle size={20} weight="fill" /> 오늘의 행운</h2>
+      <h2><Sparkle size={20} weight="fill" /> {$t.fortune.luckyItems}</h2>
       <div class="lucky-grid">
         <div class="lucky-item-big">
           <span class="lucky-icon"><Palette size={24} /></span>
-          <span class="lucky-label">행운의 색</span>
+          <span class="lucky-label">{$t.fortune.luckyColor}</span>
           <span class="lucky-value">{dashboard.todayFortune.lucky.color}</span>
         </div>
         <div class="lucky-item-big">
           <span class="lucky-icon"><NumberSquareOne size={24} /></span>
-          <span class="lucky-label">행운의 숫자</span>
+          <span class="lucky-label">{$t.fortune.luckyNumber}</span>
           <span class="lucky-value">{dashboard.todayFortune.lucky.number}</span>
         </div>
         <div class="lucky-item-big">
           <span class="lucky-icon"><Compass size={24} /></span>
-          <span class="lucky-label">행운의 방향</span>
+          <span class="lucky-label">{$t.fortune.luckyDirection}</span>
           <span class="lucky-value">{dashboard.todayFortune.lucky.direction}</span>
         </div>
       </div>
@@ -233,7 +233,7 @@
 
     <!-- 나의 기운 분석 -->
     <div class="dashboard-card strength-card-mini">
-      <h2><Scales size={20} /> 나의 기운</h2>
+      <h2><Scales size={20} /> {$t.dashboard.myEnergy}</h2>
       <div class="strength-mini-content">
         <div class="strength-mini-gauge">
           <div class="mini-gauge-bar">
@@ -241,8 +241,8 @@
             <div class="mini-gauge-marker" style="left: {dashboard.strength.ratio}%"></div>
           </div>
           <div class="mini-gauge-labels">
-            <span>신약</span>
-            <span>신강</span>
+            <span>{$t.dashboard.weak}</span>
+            <span>{$t.dashboard.strong}</span>
           </div>
         </div>
         <div class="strength-mini-info">
@@ -254,33 +254,33 @@
 
     <!-- 용신 요약 -->
     <div class="dashboard-card yongshin-mini">
-      <h2><Target size={20} /> 필요한 기운</h2>
+      <h2><Target size={20} /> {$t.dashboard.neededEnergy}</h2>
       <div class="yongshin-summary">
         <div class="yong-item good">
-          <span class="yong-role">용신</span>
-          <span class="yong-value">{dashboard.yongshin.roles.yong.name || '없음'}</span>
+          <span class="yong-role">{$t.dashboard.yongshin}</span>
+          <span class="yong-value">{dashboard.yongshin.roles.yong.name || '-'}</span>
         </div>
         <div class="yong-item good">
-          <span class="yong-role">희신</span>
-          <span class="yong-value">{dashboard.yongshin.roles.hee.name || '없음'}</span>
+          <span class="yong-role">{$t.dashboard.heeshin}</span>
+          <span class="yong-value">{dashboard.yongshin.roles.hee.name || '-'}</span>
         </div>
         <div class="yong-item bad">
-          <span class="yong-role">기신</span>
-          <span class="yong-value">{dashboard.yongshin.roles.ki.name || '없음'}</span>
+          <span class="yong-role">{$t.dashboard.kishin}</span>
+          <span class="yong-value">{dashboard.yongshin.roles.ki.name || '-'}</span>
         </div>
       </div>
     </div>
 
     <!-- 오행 분포 -->
     <div class="dashboard-card elements-mini">
-      <h2><Leaf size={20} /> 오행 분포</h2>
+      <h2><Leaf size={20} /> {$t.dashboard.elementDistribution}</h2>
       <div class="elements-row">
         {#each [
-          { name: '목', value: dashboard.elements.wood, color: '#22c55e' },
-          { name: '화', value: dashboard.elements.fire, color: '#ef4444' },
-          { name: '토', value: dashboard.elements.earth, color: '#eab308' },
-          { name: '금', value: dashboard.elements.metal, color: '#94a3b8' },
-          { name: '수', value: dashboard.elements.water, color: '#3b82f6' }
+          { name: $t.elements.wood, value: dashboard.elements.wood, color: '#22c55e' },
+          { name: $t.elements.fire, value: dashboard.elements.fire, color: '#ef4444' },
+          { name: $t.elements.earth, value: dashboard.elements.earth, color: '#eab308' },
+          { name: $t.elements.metal, value: dashboard.elements.metal, color: '#94a3b8' },
+          { name: $t.elements.water, value: dashboard.elements.water, color: '#3b82f6' }
         ] as el}
           <div class="element-mini-item">
             <div class="element-mini-bar" style="height: {el.value * 15}px; background: {el.color}"></div>
@@ -292,8 +292,8 @@
     </div>
   {:else}
     <div class="empty-dashboard">
-      <p>대시보드 정보를 불러올 수 없습니다.</p>
-      <button class="primary-btn" onclick={loadDashboard}>다시 시도</button>
+      <p>{$t.errors.loadFailed}</p>
+      <button class="primary-btn" onclick={loadDashboard}>{$t.common.retry}</button>
     </div>
   {/if}
 </div>

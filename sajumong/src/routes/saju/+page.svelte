@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
-  import { hasUser, userName, sajuInfo, isLoading, error } from '$lib/stores';
+  import { hasUser, userName, sajuInfo, isLoading, error, t } from '$lib/stores';
 
   // 사주 입력 폼
   let formName = '';
@@ -12,18 +12,18 @@
   let formGender: 'male' | 'female' = 'male';
 
   function getTimeSlot(hour: number): string {
-    if (hour >= 23 || hour < 1) return '자시';
-    if (hour < 3) return '축시';
-    if (hour < 5) return '인시';
-    if (hour < 7) return '묘시';
-    if (hour < 9) return '진시';
-    if (hour < 11) return '사시';
-    if (hour < 13) return '오시';
-    if (hour < 15) return '미시';
-    if (hour < 17) return '신시';
-    if (hour < 19) return '유시';
-    if (hour < 21) return '술시';
-    return '해시';
+    if (hour >= 23 || hour < 1) return $t.saju.timeSlots.ja;
+    if (hour < 3) return $t.saju.timeSlots.chuk;
+    if (hour < 5) return $t.saju.timeSlots.in;
+    if (hour < 7) return $t.saju.timeSlots.myo;
+    if (hour < 9) return $t.saju.timeSlots.jin;
+    if (hour < 11) return $t.saju.timeSlots.sa;
+    if (hour < 13) return $t.saju.timeSlots.oh;
+    if (hour < 15) return $t.saju.timeSlots.mi;
+    if (hour < 17) return $t.saju.timeSlots.sin;
+    if (hour < 19) return $t.saju.timeSlots.yu;
+    if (hour < 21) return $t.saju.timeSlots.sul;
+    return $t.saju.timeSlots.hae;
   }
 
   async function loadSajuInfo() {
@@ -51,7 +51,7 @@
 
   async function saveSaju() {
     if (!formName.trim()) {
-      $error = '이름을 입력해주세요.';
+      $error = $t.saju.nameRequired;
       return;
     }
 
@@ -80,10 +80,10 @@
         $sajuInfo = data.saju;
         goto('/chat');
       } else {
-        $error = data.message || '등록에 실패했습니다.';
+        $error = data.message || $t.saju.registerFailed;
       }
     } catch (e) {
-      $error = '서버 오류가 발생했습니다.';
+      $error = $t.errors.serverError;
     } finally {
       $isLoading = false;
     }
@@ -96,82 +96,82 @@
 
 <div class="saju-view">
   <div class="saju-form-card">
-    <h2>{$hasUser ? '사주 정보 수정' : '사주 등록'}</h2>
+    <h2>{$hasUser ? $t.saju.editTitle : $t.saju.registerTitle}</h2>
 
     <div class="form-group">
-      <label for="name">이름</label>
-      <input type="text" id="name" bind:value={formName} placeholder="이름을 입력하세요" />
+      <label for="name">{$t.saju.name}</label>
+      <input type="text" id="name" bind:value={formName} placeholder={$t.saju.namePlaceholder} />
     </div>
 
     <div class="form-row">
       <div class="form-group">
-        <label for="year">태어난 해</label>
+        <label for="year">{$t.saju.birthYear}</label>
         <input type="number" id="year" bind:value={formYear} min="1900" max="2100" />
       </div>
       <div class="form-group">
-        <label for="month">월</label>
+        <label for="month">{$t.saju.month}</label>
         <input type="number" id="month" bind:value={formMonth} min="1" max="12" />
       </div>
       <div class="form-group">
-        <label for="day">일</label>
+        <label for="day">{$t.saju.day}</label>
         <input type="number" id="day" bind:value={formDay} min="1" max="31" />
       </div>
     </div>
 
     <div class="form-row">
       <div class="form-group">
-        <label for="hour">태어난 시간 ({getTimeSlot(formHour)})</label>
+        <label for="hour">{$t.saju.birthHour} ({getTimeSlot(formHour)})</label>
         <input type="number" id="hour" bind:value={formHour} min="0" max="23" />
       </div>
       <div class="form-group">
-        <label>성별</label>
+        <label>{$t.saju.gender}</label>
         <div class="gender-options">
           <label class="gender-option">
             <input type="radio" bind:group={formGender} value="male" />
-            <span>남</span>
+            <span>{$t.saju.male}</span>
           </label>
           <label class="gender-option">
             <input type="radio" bind:group={formGender} value="female" />
-            <span>여</span>
+            <span>{$t.saju.female}</span>
           </label>
         </div>
       </div>
     </div>
 
     <button class="primary-btn" onclick={saveSaju} disabled={$isLoading}>
-      {$isLoading ? '저장 중...' : ($hasUser ? '수정하기' : '등록하기')}
+      {$isLoading ? $t.common.saving : ($hasUser ? $t.common.edit : $t.common.register)}
     </button>
   </div>
 
   {#if $sajuInfo}
     <div class="saju-info-card">
-      <h2>나의 사주팔자</h2>
+      <h2>{$t.saju.myPillars}</h2>
       <div class="pillars">
         <div class="pillar">
-          <span class="pillar-label">시주</span>
+          <span class="pillar-label">{$t.saju.hourPillar}</span>
           <span class="pillar-value">{$sajuInfo.hourPillar}</span>
         </div>
         <div class="pillar">
-          <span class="pillar-label">일주</span>
+          <span class="pillar-label">{$t.saju.dayPillar}</span>
           <span class="pillar-value highlight">{$sajuInfo.dayPillar}</span>
         </div>
         <div class="pillar">
-          <span class="pillar-label">월주</span>
+          <span class="pillar-label">{$t.saju.monthPillar}</span>
           <span class="pillar-value">{$sajuInfo.monthPillar}</span>
         </div>
         <div class="pillar">
-          <span class="pillar-label">년주</span>
+          <span class="pillar-label">{$t.saju.yearPillar}</span>
           <span class="pillar-value">{$sajuInfo.yearPillar}</span>
         </div>
       </div>
 
       <div class="animal-info">
-        <span class="animal-label">띠</span>
+        <span class="animal-label">{$t.saju.zodiac}</span>
         <span class="animal-value">{$sajuInfo.animal}</span>
       </div>
 
       <div class="ohaeng-chart">
-        <h3>오행 분포</h3>
+        <h3>{$t.saju.fiveElements}</h3>
         <div class="ohaeng-bars">
           {#each Object.entries($sajuInfo.ohaengCount) as [element, count]}
             <div class="ohaeng-bar-item">

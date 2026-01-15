@@ -1,0 +1,163 @@
+export type Locale = 'ko' | 'en';
+
+export interface Translations {
+	common: {
+		appName: string;
+		loading: string;
+		error: string;
+		retry: string;
+		save: string;
+		saving: string;
+		edit: string;
+		register: string;
+		delete: string;
+		cancel: string;
+		confirm: string;
+		today: string;
+		yesterday: string;
+		daysAgo: string;
+		score: string;
+	};
+	nav: {
+		newChat: string;
+		noConversations: string;
+		closeSidebar: string;
+		deleteConfirm: string;
+		chat: string;
+		dashboard: string;
+		calendar: string;
+		fortune: string;
+		saju: string;
+	};
+	chat: {
+		placeholder: string;
+		welcome: string;
+		welcomeMessage: string;
+		welcomeUser: string;
+		welcomeUserMessage: string;
+		registerSaju: string;
+		regenerate: string;
+		regenerateFailed: string;
+		sendFailed: string;
+		connectionFailed: string;
+		apiError: string;
+		streamError: string;
+		loadFailed: string;
+	};
+	saju: {
+		registerTitle: string;
+		editTitle: string;
+		name: string;
+		namePlaceholder: string;
+		nameRequired: string;
+		birthYear: string;
+		month: string;
+		day: string;
+		birthHour: string;
+		gender: string;
+		male: string;
+		female: string;
+		registerFailed: string;
+		myPillars: string;
+		yearPillar: string;
+		monthPillar: string;
+		dayPillar: string;
+		hourPillar: string;
+		zodiac: string;
+		fiveElements: string;
+		timeSlots: {
+			ja: string;
+			chuk: string;
+			in: string;
+			myo: string;
+			jin: string;
+			sa: string;
+			oh: string;
+			mi: string;
+			sin: string;
+			yu: string;
+			sul: string;
+			hae: string;
+		};
+	};
+	elements: {
+		wood: string;
+		fire: string;
+		earth: string;
+		metal: string;
+		water: string;
+	};
+	fortune: {
+		title: string;
+		todayFortune: string;
+		overall: string;
+		love: string;
+		money: string;
+		health: string;
+		work: string;
+		todayPillar: string;
+		todaysAdvice: string;
+		luckyColor: string;
+		luckyNumber: string;
+		luckyDirection: string;
+		luckyItems: string;
+	};
+	dashboard: {
+		todayMe: string;
+		myEnergy: string;
+		neededEnergy: string;
+		strong: string;
+		weak: string;
+		yongshin: string;
+		heeshin: string;
+		kishin: string;
+		gushin: string;
+		hanshin: string;
+		elementDistribution: string;
+	};
+	calendar: {
+		yearMonth: string;
+		weekdays: string[];
+		pillar: string;
+	};
+	colors: {
+		red: string;
+		orange: string;
+		yellow: string;
+		green: string;
+		blue: string;
+		indigo: string;
+		purple: string;
+		black: string;
+		white: string;
+		pink: string;
+		brown: string;
+		gold: string;
+		silver: string;
+		cyan: string;
+	};
+	directions: {
+		east: string;
+		west: string;
+		south: string;
+		north: string;
+		northeast: string;
+		southeast: string;
+		northwest: string;
+		southwest: string;
+		center: string;
+	};
+	errors: {
+		noUserInfo: string;
+		registerSajuFirst: string;
+		serverError: string;
+		loadFailed: string;
+		deleteFailed: string;
+		messageRequired: string;
+		invalidBirthYear: string;
+		invalidBirthMonth: string;
+		invalidBirthDay: string;
+		invalidBirthHour: string;
+		genderRequired: string;
+	};
+}

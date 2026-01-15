@@ -9,6 +9,19 @@ import {
   ELEMENT_KE,
   type Element
 } from './ganji';
+import type { Locale } from '$lib/i18n/types';
+
+// 다국어 색상 배열
+const COLORS: Record<Locale, string[]> = {
+  ko: ['빨강', '주황', '노랑', '초록', '파랑', '남색', '보라', '검정', '흰색', '분홍'],
+  en: ['Red', 'Orange', 'Yellow', 'Green', 'Blue', 'Indigo', 'Purple', 'Black', 'White', 'Pink']
+};
+
+// 다국어 방향 배열
+const DIRECTIONS: Record<Locale, string[]> = {
+  ko: ['동', '서', '남', '북', '동북', '동남', '서북', '서남'],
+  en: ['East', 'West', 'South', 'North', 'Northeast', 'Southeast', 'Northwest', 'Southwest']
+};
 
 // 특정 날짜의 일진 계산
 export function getPillarForDate(date: Date): { stem: string; branch: string; fullName: string; stemElement: Element; branchElement: Element } {
@@ -165,7 +178,7 @@ export interface DailyFortune {
 }
 
 // 완전한 일일 운세 생성
-export function generateDailyFortune(saju: SajuResult): DailyFortune {
+export function generateDailyFortune(saju: SajuResult, locale: Locale = 'ko'): DailyFortune {
   const todayPillar = getTodayPillar();
   const categories = calculateFortuneCategories(saju);
   const description = generateFortuneDescription(saju);
@@ -173,15 +186,15 @@ export function generateDailyFortune(saju: SajuResult): DailyFortune {
   const today = new Date();
   const seed = today.getDate() + today.getMonth() * 31 + today.getFullYear();
 
-  // 행운의 색
-  const colors = ['빨강', '주황', '노랑', '초록', '파랑', '남색', '보라', '검정', '흰색', '분홍'];
+  // 행운의 색 (locale 적용)
+  const colors = COLORS[locale];
   const luckyColor = colors[seed % colors.length];
 
   // 행운의 숫자
   const luckyNumber = (seed % 9) + 1;
 
-  // 행운의 방향
-  const directions = ['동', '서', '남', '북', '동북', '동남', '서북', '서남'];
+  // 행운의 방향 (locale 적용)
+  const directions = DIRECTIONS[locale];
   const luckyDirection = directions[seed % directions.length];
 
   return {
@@ -197,21 +210,21 @@ export function generateDailyFortune(saju: SajuResult): DailyFortune {
 }
 
 // 특정 날짜의 운세 계산 (달력용)
-export function calculateDailyFortune(saju: SajuResult, targetDate: Date): DailyFortune {
+export function calculateDailyFortune(saju: SajuResult, targetDate: Date, locale: Locale = 'ko'): DailyFortune {
   const pillar = getPillarForDate(targetDate);
   const categories = calculateFortuneCategories(saju, targetDate);
 
   const seed = targetDate.getDate() + targetDate.getMonth() * 31 + targetDate.getFullYear();
 
-  // 행운의 색
-  const colors = ['빨강', '주황', '노랑', '초록', '파랑', '남색', '보라', '검정', '흰색', '분홍'];
+  // 행운의 색 (locale 적용)
+  const colors = COLORS[locale];
   const luckyColor = colors[seed % colors.length];
 
   // 행운의 숫자
   const luckyNumber = (seed % 9) + 1;
 
-  // 행운의 방향
-  const directions = ['동', '서', '남', '북', '동북', '동남', '서북', '서남'];
+  // 행운의 방향 (locale 적용)
+  const directions = DIRECTIONS[locale];
   const luckyDirection = directions[seed % directions.length];
 
   return {

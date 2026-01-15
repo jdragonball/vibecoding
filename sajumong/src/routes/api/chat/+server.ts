@@ -30,7 +30,7 @@ const RECENT_MESSAGES_COUNT = 10;
 export const POST: RequestHandler = async ({ request }) => {
   try {
     const body = await request.json();
-    const { message, sessionId, action, stream: useStream } = body;
+    const { message, sessionId, action, stream: useStream, locale = 'ko' } = body;
 
     // 사용자 조회
     const user = getFirstUser();
@@ -77,7 +77,8 @@ export const POST: RequestHandler = async ({ request }) => {
                 lastUserMsg.content,
                 historyWithoutLast,
                 sajuData,
-                user
+                user,
+                { locale }
               );
 
               for await (const chunk of generator) {
@@ -114,7 +115,8 @@ export const POST: RequestHandler = async ({ request }) => {
         lastUserMsg.content,
         historyWithoutLast,
         sajuData,
-        user
+        user,
+        { locale }
       );
 
       // 응답 저장
@@ -165,7 +167,8 @@ export const POST: RequestHandler = async ({ request }) => {
               user,
               {
                 summary: existingSummary?.summary || null,
-                memories: memoryContents
+                memories: memoryContents,
+                locale
               }
             );
 
@@ -226,7 +229,8 @@ export const POST: RequestHandler = async ({ request }) => {
       user,
       {
         summary: existingSummary?.summary || null,
-        memories: memoryContents
+        memories: memoryContents,
+        locale
       }
     );
 

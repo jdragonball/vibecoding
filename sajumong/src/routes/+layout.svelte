@@ -14,7 +14,8 @@
     List,
     X
   } from 'phosphor-svelte';
-  import { showSidebar, sessions, currentSessionId, hasUser, userName, error } from '$lib/stores';
+  import { showSidebar, sessions, currentSessionId, hasUser, userName, error, t, locale } from '$lib/stores';
+  import LanguageSelector from '$lib/components/LanguageSelector.svelte';
 
   // 현재 경로 확인
   $: currentPath = $page.url.pathname;
@@ -27,10 +28,11 @@
     const diff = now.getTime() - date.getTime();
     const days = Math.floor(diff / (1000 * 60 * 60 * 24));
 
-    if (days === 0) return '오늘';
-    if (days === 1) return '어제';
-    if (days < 7) return `${days}일 전`;
-    return date.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' });
+    if (days === 0) return $t.common.today;
+    if (days === 1) return $t.common.yesterday;
+    if (days < 7) return $t.common.daysAgo.replace('{n}', String(days));
+    const localeStr = $locale === 'ko' ? 'ko-KR' : 'en-US';
+    return date.toLocaleDateString(localeStr, { month: 'short', day: 'numeric' });
   }
 
   // 새 대화 시작
@@ -50,7 +52,7 @@
   // 세션 삭제
   async function deleteSession(sessionId: string, event: Event) {
     event.stopPropagation();
-    if (!confirm('이 대화를 삭제하시겠습니까?')) return;
+    if (!confirm($t.nav.deleteConfirm)) return;
 
     try {
       const res = await fetch(`/api/chat?sessionId=${sessionId}`, { method: 'DELETE' });
@@ -105,8 +107,8 @@
     <!-- 사이드바 -->
     <aside class="sidebar" class:open={$showSidebar}>
       <div class="sidebar-header">
-        <h2><Sparkle size={18} weight="fill" /> 사주몽</h2>
-        <button class="new-chat-btn-small" onclick={startNewChat} title="새 대화">
+        <h2><Sparkle size={18} weight="fill" /> {$t.common.appName}</h2>
+        <button class="new-chat-btn-small" onclick={startNewChat} title={$t.nav.newChat}>
           <PencilSimple size={18} />
         </button>
       </div>
@@ -133,7 +135,7 @@
 
         {#if $sessions.length === 0}
           <div class="no-sessions">
-            아직 대화가 없습니다
+            {$t.nav.noConversations}
           </div>
         {/if}
       </div>
@@ -141,7 +143,7 @@
 
     <!-- 사이드바 오버레이 (모바일) -->
     {#if $showSidebar}
-      <button class="sidebar-overlay" onclick={() => $showSidebar = false} aria-label="사이드바 닫기"></button>
+      <button class="sidebar-overlay" onclick={() => $showSidebar = false} aria-label={$t.nav.closeSidebar}></button>
     {/if}
 
     <!-- 메인 영역 -->
@@ -150,9 +152,10 @@
       <header class="header">
         <div class="header-left">
           <button class="menu-btn" onclick={() => $showSidebar = true}><List size={22} /></button>
-          <h1 class="logo"><Sparkle size={22} weight="fill" /> 사주몽</h1>
+          <h1 class="logo"><Sparkle size={22} weight="fill" /> {$t.common.appName}</h1>
         </div>
-        <nav class="nav">
+        <div class="header-right">
+          <nav class="nav">
           <a
             class="nav-btn"
             class:active={isChatPage}
@@ -188,7 +191,9 @@
           >
             <ClipboardText size={22} weight={currentPath === '/saju' ? 'fill' : 'regular'} />
           </a>
-        </nav>
+          </nav>
+          <LanguageSelector />
+        </div>
       </header>
 
       <!-- 메인 컨텐츠 -->
@@ -391,6 +396,12 @@
     gap: var(--space-3);
   }
 
+  .header-right {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+  }
+
   .menu-btn {
     width: 40px;
     height: 40px;
@@ -536,8 +547,14 @@
       justify-content: space-between;
     }
 
-    .nav {
+    .header-right {
       width: 100%;
+      flex-direction: row;
+      gap: var(--space-2);
+    }
+
+    .nav {
+      flex: 1;
     }
 
     .nav-btn {

@@ -3,7 +3,7 @@
   import { goto } from '$app/navigation';
   import { marked } from 'marked';
   import { Sparkle, PaperPlaneTilt } from 'phosphor-svelte';
-  import { hasUser, userName, sessions, currentSessionId, isLoading } from '$lib/stores';
+  import { hasUser, userName, sessions, currentSessionId, isLoading, t, locale } from '$lib/stores';
 
   marked.setOptions({ breaks: true, gfm: true });
 
@@ -66,12 +66,13 @@
         body: JSON.stringify({
           message: userMessage,
           sessionId: null,  // 새 세션 생성 요청
-          stream: true      // 스트리밍 모드 활성화
+          stream: true,     // 스트리밍 모드 활성화
+          locale: $locale   // 언어 설정 전달
         })
       });
 
       if (!res.ok) {
-        throw new Error('API 오류');
+        throw new Error($t.chat.apiError);
       }
 
       const reader = res.body?.getReader();
@@ -79,7 +80,7 @@
       let realSessionId: string | null = null;
 
       if (!reader) {
-        throw new Error('스트림을 읽을 수 없습니다');
+        throw new Error($t.chat.streamError);
       }
 
       // SSE 파싱
@@ -133,7 +134,7 @@
         }
       }
     } catch (e) {
-      console.error('메시지 전송 실패:', e);
+      console.error($t.chat.sendFailed, e);
       $sessions = $sessions.filter(s => s.id !== tempSessionId);
       if (streamingContent) {
         messages = [...messages, {
@@ -144,7 +145,7 @@
       } else {
         messages = [...messages, {
           role: 'assistant',
-          content: '서버 연결에 실패했습니다.',
+          content: $t.chat.connectionFailed,
           createdAt: new Date().toISOString()
         }];
       }
@@ -170,18 +171,18 @@
   {#if !$hasUser}
     <div class="welcome-message">
       <div class="welcome-icon"><Sparkle size={48} weight="fill" /></div>
-      <h2>사주몽에 오신 것을 환영합니다!</h2>
-      <p>AI 사주 상담을 시작하려면 먼저 사주 정보를 등록해주세요.</p>
+      <h2>{$t.chat.welcome}</h2>
+      <p>{$t.chat.welcomeMessage}</p>
       <a class="primary-btn" href="/saju">
-        사주 등록하기
+        {$t.chat.registerSaju}
       </a>
     </div>
   {:else}
     <div class="chat-container" bind:this={chatContainer}>
       {#if messages.length === 0}
         <div class="chat-welcome">
-          <p>안녕하세요, <strong>{$userName}</strong>님!</p>
-          <p>저는 사주몽이에요. 사주에 관해 궁금한 것이 있으면 무엇이든 물어보세요.</p>
+          <p>{$t.chat.welcomeUser.replace('{name}', $userName)}</p>
+          <p>{$t.chat.welcomeUserMessage}</p>
         </div>
       {/if}
 
@@ -219,7 +220,7 @@
         bind:this={inputElement}
         bind:value={inputMessage}
         onkeydown={handleKeydown}
-        placeholder="메시지를 입력하세요..."
+        placeholder={$t.chat.placeholder}
         rows="1"
         disabled={$isLoading}
       ></textarea>

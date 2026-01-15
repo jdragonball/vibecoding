@@ -4,9 +4,12 @@ import { getFirstUser, getSajuDataByUserId } from '$lib/server/db/client';
 import { calculateSaju } from '$lib/server/saju/calculator';
 import { analyzeSaju } from '$lib/server/saju/analysis';
 import { calculateDailyFortune } from '$lib/server/saju/fortune';
+import type { Locale } from '$lib/i18n/types';
 
 export const GET: RequestHandler = async ({ url }) => {
   try {
+    const locale = (url.searchParams.get('locale') || 'ko') as Locale;
+
     const user = getFirstUser();
     if (!user) {
       return json({
@@ -52,7 +55,7 @@ export const GET: RequestHandler = async ({ url }) => {
 
     for (let day = 1; day <= daysInMonth; day++) {
       const targetDate = new Date(year, month - 1, day);
-      const fortune = calculateDailyFortune(sajuResult, targetDate);
+      const fortune = calculateDailyFortune(sajuResult, targetDate, locale);
 
       fortunes.push({
         day,

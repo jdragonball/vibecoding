@@ -5,8 +5,24 @@ import { generateDailyFortune } from '$lib/server/saju/fortune';
 import { generateFortuneAdvice } from '$lib/server/ai/claude';
 import { getFirstUser, getSajuDataByUserId, saveDailyFortune, getTodayFortune } from '$lib/server/db/client';
 
-export const GET: RequestHandler = async () => {
+import type { Locale } from '$lib/i18n/types';
+
+// 색상/방향 변환을 위한 매핑
+const COLORS_KO_TO_EN: Record<string, string> = {
+  '빨강': 'Red', '주황': 'Orange', '노랑': 'Yellow', '초록': 'Green',
+  '파랑': 'Blue', '남색': 'Indigo', '보라': 'Purple', '검정': 'Black',
+  '흰색': 'White', '분홍': 'Pink'
+};
+
+const DIRECTIONS_KO_TO_EN: Record<string, string> = {
+  '동': 'East', '서': 'West', '남': 'South', '북': 'North',
+  '동북': 'Northeast', '동남': 'Southeast', '서북': 'Northwest', '서남': 'Southwest'
+};
+
+export const GET: RequestHandler = async ({ url }) => {
   try {
+    const locale = (url.searchParams.get('locale') || 'ko') as Locale;
+
     // 사용자 조회
     const user = getFirstUser();
     if (!user) {
@@ -16,6 +32,15 @@ export const GET: RequestHandler = async () => {
     // 오늘의 운세가 이미 있는지 확인
     const existingFortune = getTodayFortune(user.id);
     if (existingFortune) {
+      // 캐시된 운세가 있으면 locale에 맞게 색상/방향 변환
+      let luckyColor = existingFortune.luckyColor;
+      let luckyDirection = existingFortune.luckyDirection;
+
+      if (locale === 'en') {
+        luckyColor = COLORS_KO_TO_EN[luckyColor] || luckyColor;
+        luckyDirection = DIRECTIONS_KO_TO_EN[luckyDirection] || luckyDirection;
+      }
+
       return json({
         success: true,
         cached: true,
@@ -30,9 +55,9 @@ export const GET: RequestHandler = async () => {
             work: existingFortune.workScore
           },
           advice: existingFortune.advice,
-          luckyColor: existingFortune.luckyColor,
+          luckyColor,
           luckyNumber: existingFortune.luckyNumber,
-          luckyDirection: existingFortune.luckyDirection
+          luckyDirection
         }
       });
     }
@@ -54,14 +79,15 @@ export const GET: RequestHandler = async () => {
 
     const saju = calculateSaju(birthInfo);
 
-    // 일일 운세 생성
-    const fortune = generateDailyFortune(saju);
+    // 일일 운세 생성 (locale 적용)
+    const fortune = generateDailyFortune(saju, locale);
 
-    // Claude AI로 조언 생성
+    // Claude AI로 조언 생성 (locale 적용)
     const advice = await generateFortuneAdvice(
       sajuData,
       fortune.todayPillar,
-      fortune.categories
+      fortune.categories,
+      locale
     );
 
     fortune.advice = advice;

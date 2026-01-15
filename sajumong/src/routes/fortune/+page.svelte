@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { marked } from 'marked';
-  import { hasUser, isLoading, error } from '$lib/stores';
+  import { hasUser, isLoading, error, t, locale } from '$lib/stores';
 
   // marked 설정
   marked.setOptions({
@@ -41,7 +41,7 @@
 
   async function loadFortune() {
     if (!$hasUser) {
-      $error = '먼저 사주를 등록해주세요.';
+      $error = $t.errors.registerSajuFirst;
       goto('/saju');
       return;
     }
@@ -50,16 +50,16 @@
     $error = '';
 
     try {
-      const res = await fetch('/api/fortune');
+      const res = await fetch(`/api/fortune?locale=${$locale}`);
       const data = await res.json();
 
       if (data.success) {
         fortune = data.fortune;
       } else {
-        $error = data.message || '운세를 불러오는 데 실패했습니다.';
+        $error = data.message || $t.errors.loadFailed;
       }
     } catch (e) {
-      $error = '서버 오류가 발생했습니다.';
+      $error = $t.errors.serverError;
     } finally {
       $isLoading = false;
     }
@@ -74,23 +74,23 @@
   {#if $isLoading}
     <div class="loading-spinner">
       <div class="spinner"></div>
-      <p>운세를 불러오는 중...</p>
+      <p>{$t.common.loading}</p>
     </div>
   {:else if fortune}
     <div class="fortune-card">
-      <h2>{fortune.date} 운세</h2>
+      <h2>{$t.fortune.title.replace('{date}', fortune.date)}</h2>
       <div class="today-pillar">
-        <span class="pillar-label">오늘의 일진</span>
+        <span class="pillar-label">{$t.fortune.todayPillar}</span>
         <span class="pillar-value">{fortune.todayPillar}</span>
       </div>
 
       <div class="fortune-scores">
         {#each [
-          { label: '총운', score: fortune.categories.overall },
-          { label: '애정', score: fortune.categories.love },
-          { label: '금전', score: fortune.categories.money },
-          { label: '건강', score: fortune.categories.health },
-          { label: '직장', score: fortune.categories.work }
+          { label: $t.fortune.overall, score: fortune.categories.overall },
+          { label: $t.fortune.love, score: fortune.categories.love },
+          { label: $t.fortune.money, score: fortune.categories.money },
+          { label: $t.fortune.health, score: fortune.categories.health },
+          { label: $t.fortune.work, score: fortune.categories.work }
         ] as item}
           <div class="score-item">
             <span class="score-label">{item.label}</span>
@@ -103,7 +103,7 @@
       </div>
 
       <div class="fortune-advice">
-        <h3>오늘의 조언</h3>
+        <h3>{$t.fortune.todaysAdvice}</h3>
         <div class="advice-content">
           {@html renderMarkdown(fortune.advice)}
         </div>
@@ -111,23 +111,23 @@
 
       <div class="lucky-items">
         <div class="lucky-item">
-          <span class="lucky-label">행운의 색</span>
+          <span class="lucky-label">{$t.fortune.luckyColor}</span>
           <span class="lucky-value">{fortune.luckyColor}</span>
         </div>
         <div class="lucky-item">
-          <span class="lucky-label">행운의 숫자</span>
+          <span class="lucky-label">{$t.fortune.luckyNumber}</span>
           <span class="lucky-value">{fortune.luckyNumber}</span>
         </div>
         <div class="lucky-item">
-          <span class="lucky-label">행운의 방향</span>
+          <span class="lucky-label">{$t.fortune.luckyDirection}</span>
           <span class="lucky-value">{fortune.luckyDirection}</span>
         </div>
       </div>
     </div>
   {:else}
     <div class="empty-fortune">
-      <p>운세 정보를 불러올 수 없습니다.</p>
-      <button class="primary-btn" onclick={loadFortune}>다시 시도</button>
+      <p>{$t.errors.loadFailed}</p>
+      <button class="primary-btn" onclick={loadFortune}>{$t.common.retry}</button>
     </div>
   {/if}
 </div>

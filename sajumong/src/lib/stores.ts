@@ -1,5 +1,9 @@
 import { writable } from 'svelte/store';
 
+// i18n
+export { locale, setLocale, t, getCurrentLocale, getTranslations } from '$lib/i18n';
+export type { Locale } from '$lib/i18n';
+
 // 사이드바 상태
 export const showSidebar = writable(false);
 

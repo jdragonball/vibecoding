@@ -5,9 +5,27 @@ import { calculateSaju } from '$lib/server/saju/calculator';
 import { analyzeSaju } from '$lib/server/saju/analysis';
 import { ELEMENT_KO, ELEMENT_NAMES } from '$lib/server/saju/ganji';
 import { getTodayPillar, calculateFortuneCategories } from '$lib/server/saju/fortune';
+import type { Locale } from '$lib/i18n/types';
 
-export const GET: RequestHandler = async () => {
+// 다국어 색상/방향
+const COLORS: Record<Locale, string[]> = {
+  ko: ['빨강', '주황', '노랑', '초록', '파랑', '남색', '보라', '검정', '흰색', '분홍'],
+  en: ['Red', 'Orange', 'Yellow', 'Green', 'Blue', 'Indigo', 'Purple', 'Black', 'White', 'Pink']
+};
+
+const DIRECTIONS: Record<Locale, string[]> = {
+  ko: ['동', '서', '남', '북', '동북', '동남', '서북', '서남'],
+  en: ['East', 'West', 'South', 'North', 'Northeast', 'Southeast', 'Northwest', 'Southwest']
+};
+
+// 오행 영어 이름
+const ELEMENT_EN: Record<string, string> = {
+  '목': 'Wood', '화': 'Fire', '토': 'Earth', '금': 'Metal', '수': 'Water'
+};
+
+export const GET: RequestHandler = async ({ url }) => {
   try {
+    const locale = (url.searchParams.get('locale') || 'ko') as Locale;
     const user = getFirstUser();
     if (!user) {
       return json({
@@ -42,8 +60,14 @@ export const GET: RequestHandler = async () => {
     // 오늘 날짜
     const today = new Date();
     const seed = today.getDate() + today.getMonth() * 31 + today.getFullYear();
-    const colors = ['빨강', '주황', '노랑', '초록', '파랑', '남색', '보라', '검정', '흰색', '분홍'];
-    const directions = ['동', '서', '남', '북', '동북', '동남', '서북', '서남'];
+    const colors = COLORS[locale];
+    const directions = DIRECTIONS[locale];
+
+    // 오행 이름 변환 함수
+    const getElementName = (element: string | null): string | null => {
+      if (!element) return null;
+      return locale === 'en' ? (ELEMENT_EN[element] || element) : element;
+    };
 
     // 프론트엔드용 데이터 구성
     const dashboard = {
@@ -147,11 +171,18 @@ export const GET: RequestHandler = async () => {
         // 기운 상태 (0-100 점수 기반)
         mood: getMoodFromScore(todayFortune.overall),
         // 오늘의 조언
-        advice: getAdviceFromScore(todayFortune.overall, analysis.strength.isStrong, ELEMENT_KO[analysis.yongshin.roles.yong.element || 'wood'])
+        advice: getAdviceFromScore(todayFortune.overall, analysis.strength.isStrong, getElementName(ELEMENT_KO[analysis.yongshin.roles.yong.element || 'wood']) || '')
       }
     };
 
     function getMoodFromScore(score: number): { level: number; label: string; emoji: string; description: string } {
+      if (locale === 'en') {
+        if (score >= 85) return { level: 5, label: 'Excellent', emoji: '🌟', description: 'Great energy surrounds you today!' };
+        if (score >= 70) return { level: 4, label: 'Good', emoji: '😊', description: 'Positive energy flows through your day.' };
+        if (score >= 55) return { level: 3, label: 'Average', emoji: '😌', description: 'A smooth day ahead.' };
+        if (score >= 40) return { level: 2, label: 'Caution', emoji: '😐', description: 'Take things easy today.' };
+        return { level: 1, label: 'Difficult', emoji: '😔', description: 'Rest and recharge today.' };
+      }
       if (score >= 85) return { level: 5, label: '최고', emoji: '🌟', description: '오늘 하루 정말 좋은 기운이 가득해요!' };
       if (score >= 70) return { level: 4, label: '좋음', emoji: '😊', description: '긍정적인 에너지가 느껴지는 하루예요.' };
       if (score >= 55) return { level: 3, label: '보통', emoji: '😌', description: '무난한 하루가 될 거예요.' };
@@ -160,7 +191,7 @@ export const GET: RequestHandler = async () => {
     }
 
     function getAdviceFromScore(score: number, isStrong: boolean, yongElement: string): string {
-      const advices = {
+      const advicesKo = {
         high: [
           `오늘은 ${yongElement}의 기운이 좋으니 적극적으로 움직여보세요.`,
           '좋은 기운을 타고 새로운 도전을 시작하기 좋은 날이에요.',
@@ -178,6 +209,25 @@ export const GET: RequestHandler = async () => {
         ]
       };
 
+      const advicesEn = {
+        high: [
+          `${yongElement} energy is strong today - be proactive and take action.`,
+          'Great day to start new challenges and ventures.',
+          'Good fortune for relationships - enjoy meeting people.'
+        ],
+        medium: [
+          'Continue with your usual routine steadily.',
+          `Supplement your ${yongElement} energy for a better day.`,
+          'Think carefully before making quick decisions.'
+        ],
+        low: [
+          'Take time to rest and recharge today.',
+          `Keep ${yongElement}-colored items nearby for energy boost.`,
+          'Better to postpone demanding plans or commitments.'
+        ]
+      };
+
+      const advices = locale === 'en' ? advicesEn : advicesKo;
       const category = score >= 70 ? 'high' : score >= 50 ? 'medium' : 'low';
       const seed = new Date().getDate();
       return advices[category][seed % advices[category].length];

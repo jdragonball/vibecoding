@@ -5,7 +5,7 @@
   import { goto } from '$app/navigation';
   import { marked } from 'marked';
   import { ArrowsClockwise, PaperPlaneTilt } from 'phosphor-svelte';
-  import { hasUser, userName, sessions, currentSessionId, isLoading } from '$lib/stores';
+  import { hasUser, userName, sessions, currentSessionId, isLoading, t, locale } from '$lib/stores';
 
   marked.setOptions({ breaks: true, gfm: true });
 
@@ -94,19 +94,20 @@
         body: JSON.stringify({
           message: userMessage,
           sessionId: sessionId,
-          stream: true  // 스트리밍 모드 활성화
+          stream: true,  // 스트리밍 모드 활성화
+          locale: $locale
         })
       });
 
       if (!res.ok) {
-        throw new Error('API 오류');
+        throw new Error($t.chat.apiError);
       }
 
       const reader = res.body?.getReader();
       const decoder = new TextDecoder();
 
       if (!reader) {
-        throw new Error('스트림을 읽을 수 없습니다');
+        throw new Error($t.chat.streamError);
       }
 
       // SSE 파싱
@@ -154,18 +155,18 @@
         }
       }
     } catch (e) {
-      console.error('메시지 전송 실패:', e);
+      console.error($t.chat.sendFailed, e);
       if (streamingContent) {
         // 스트리밍 중 오류: 지금까지의 내용 저장
         messages = [...messages, {
           role: 'assistant',
-          content: streamingContent || '서버 연결에 실패했습니다.',
+          content: streamingContent || $t.chat.connectionFailed,
           createdAt: new Date().toISOString()
         }];
       } else {
         messages = [...messages, {
           role: 'assistant',
-          content: '서버 연결에 실패했습니다.',
+          content: $t.chat.connectionFailed,
           createdAt: new Date().toISOString()
         }];
       }
@@ -194,19 +195,20 @@
         body: JSON.stringify({
           action: 'regenerate',
           sessionId: sessionId,
-          stream: true  // 스트리밍 모드 활성화
+          stream: true,  // 스트리밍 모드 활성화
+          locale: $locale
         })
       });
 
       if (!res.ok) {
-        throw new Error('API 오류');
+        throw new Error($t.chat.apiError);
       }
 
       const reader = res.body?.getReader();
       const decoder = new TextDecoder();
 
       if (!reader) {
-        throw new Error('스트림을 읽을 수 없습니다');
+        throw new Error($t.chat.streamError);
       }
 
       let buffer = '';
@@ -252,7 +254,7 @@
         }
       }
     } catch (e) {
-      console.error('다시 생성 실패:', e);
+      console.error($t.chat.regenerateFailed, e);
       if (streamingContent) {
         messages = [...messages, {
           role: 'assistant',
@@ -262,7 +264,7 @@
       } else {
         messages = [...messages, {
           role: 'assistant',
-          content: '다시 생성하는 데 실패했습니다.',
+          content: $t.chat.regenerateFailed,
           createdAt: new Date().toISOString()
         }];
       }
@@ -285,7 +287,7 @@
   <div class="chat-container" bind:this={chatContainer}>
     {#if messages.length === 0}
       <div class="chat-welcome">
-        <p>메시지를 불러오는 중...</p>
+        <p>{$t.common.loading}</p>
       </div>
     {/if}
 
@@ -300,8 +302,8 @@
         </div>
         {#if message.role === 'assistant' && index === messages.length - 1 && !$isLoading}
           <div class="message-actions">
-            <button class="action-btn" onclick={regenerateResponse} title="다시 생성">
-              <ArrowsClockwise size={14} /> 다시 생성
+            <button class="action-btn" onclick={regenerateResponse} title={$t.chat.regenerate}>
+              <ArrowsClockwise size={14} /> {$t.chat.regenerate}
             </button>
           </div>
         {/if}
@@ -330,7 +332,7 @@
       bind:this={inputElement}
       bind:value={inputMessage}
       onkeydown={handleKeydown}
-      placeholder="메시지를 입력하세요..."
+      placeholder={$t.chat.placeholder}
       rows="1"
       disabled={$isLoading}
     ></textarea>
