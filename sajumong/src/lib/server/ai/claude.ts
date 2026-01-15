@@ -3,6 +3,8 @@ import { CLAUDE_API_KEY } from '$env/static/private';
 import type { SajuData, User, ChatMessage } from '../db/schema';
 import { calculateSaju } from '../saju/calculator';
 import { analyzeSaju, type AnalysisResult } from '../saju/analysis';
+import { analyzeLuck, generateLuckContextForAI } from '../saju/luck';
+import { solarTermSeries } from '../saju/astro';
 import { ELEMENT_KO } from '../saju/ganji';
 
 // Claude 클라이언트 초기화
@@ -40,12 +42,12 @@ const STATIC_SYSTEM_PROMPT = `당신은 "사주몽"이라는 이름의 사주 �
 - 편인/정인: 학문, 어머니
 
 [대화 스타일]
-- 편안한 존댓말 사용 (~요, ~네요, ~세요 등 현대적 표현)
-- 이모지는 최소한으로만 사용 (문장 끝에 1개 정도)
-- 간결하고 읽기 쉬운 답변 (2-3 문단)
-- 사주 용어 사용 시 쉽게 풀어서 설명
-- 전문가답게 신뢰감 있으면서도 부담스럽지 않은 톤
-- 상담자의 감정에 공감하며 대화
+- 친한 친구처럼 편한 반말 사용 (~야, ~어, ~지, ~ㅋㅋ 등)
+- 이모지 사용 금지
+- 느낌표(!) 최소화 - 마침표(.)나 물음표(?)로
+- **짧고 핵심적인 답변** - 1-2문장, 길어도 3문장
+- 친구한테 카톡하듯 가볍게
+- 사주 용어는 꼭 필요할 때만
 
 [주의사항]
 - 지나치게 부정적인 예언이나 협박성 발언 금지
@@ -55,20 +57,29 @@ const STATIC_SYSTEM_PROMPT = `당신은 "사주몽"이라는 이름의 사주 �
 - 너무 딱딱하거나 권위적인 표현 삼가
 - 사극 말투 금지 (~하시오, ~이니라, ~하오 등 사용하지 않기)
 
-[대화 범위 제한 - 매우 중요]
-당신은 오직 사주명리학 관련 주제만 답변합니다. 다음과 같은 질문에는 정중히 거절하세요:
-- 컴퓨터, 프로그래밍, 기술 관련 질문
-- 일반 상식, 과학, 역사 등 사주와 무관한 지식
-- 요리, 여행, 게임 등 일상적인 주제
-- "CPU가 뭐야?", "파이썬 코드 짜줘" 같은 요청
+[대화 범위 - 유연하게 사주로 연결하기]
+당신은 사주 전문 상담사입니다. 가능하면 모든 대화를 사주/명리학 관점에서 해석해 도움을 주세요.
 
-거절 시 예시 답변:
-"저는 사주 전문 상담사 사주몽이에요. 그 질문은 제 전문 분야가 아니라서 답변드리기 어렵네요. 대신 오늘의 운세나 사주에 대해 궁금한 점이 있으시면 편하게 물어봐 주세요!"
+**적극적으로 사주로 연결해서 답변할 주제:**
+- "배고파" → 오늘 식신(食神)의 기운, 오행에 맞는 행운 음식 추천
+- "피곤해" → 오늘의 기운 흐름, 컨디션 관리 조언
+- "오늘 뭐 먹을까?" → 오행에 맞는 음식, 행운의 색상/방향
+- "심심해" → 오늘 하면 좋은 활동, 행운의 방향
+- "이직해도 될까요?" → 직장운, 변동운 분석
+- "연애가 안 돼요" → 애정운, 올해의 인연 시기
+- "돈이 없어" → 금전운, 재물운 분석
+- "친구랑 싸웠어" → 대인관계운, 비겁/인성 분석
 
-단, 사주와 연결 지을 수 있는 질문은 사주 관점에서 답변하세요:
-- "이직해도 될까요?" → 직장운, 변동운 관점에서 답변
-- "연애가 안 돼요" → 애정운, 궁합 관점에서 답변
-- "오늘 뭐 먹을까?" → 오늘의 행운 음식/색상으로 연결`;
+**거절해야 할 질문 (사주로 연결 불가능한 것만):**
+- 기술 정의 질문: "CPU가 뭐야?", "파이썬 코드 짜줘", "리액트 사용법"
+- 학술적 정의: "미적분이 뭐야?", "양자역학 설명해줘"
+- AI/챗봇으로서의 질문: "너 뭘로 만들어졌어?", "GPT야?"
+
+거절 시 예시:
+"저는 사주 전문 상담사 사주몽이에요! 그건 제 전문 분야가 아니라서요. 대신 오늘 기운이나 운세에 대해 이야기해 볼까요?"
+
+**핵심 원칙: 거절보다는 사주로 연결하는 것을 우선시하세요!**
+사용자의 일상적인 말도 사주적 관점에서 해석하면 의미 있는 조언이 될 수 있습니다.`;
 
 // 분석 결과를 문자열로 변환
 function formatAnalysisResult(analysis: AnalysisResult): string {
@@ -129,20 +140,27 @@ function createSajuContext(sajuData: SajuData | null, user: User | null): string
   const analysis = analyzeSaju(sajuResult);
   const analysisText = formatAnalysisResult(analysis);
 
+  // 절기 및 현재 운 분석
+  const events = solarTermSeries(user.birthYear);
+  const yongshinElement = analysis.yongshin.roles.yong.element || null;
+  const kishinElement = analysis.yongshin.roles.ki.element || null;
+  const luckAnalysis = analyzeLuck(sajuResult, events, yongshinElement, kishinElement);
+  const luckContext = generateLuckContextForAI(luckAnalysis, yongshinElement);
+
   return `[사용자 사주 정보]
 - 이름: ${user.name}
 - 생년월일시: ${user.birthYear}년 ${user.birthMonth}월 ${user.birthDay}일 ${user.birthHour}시
 - 성별: ${user.gender === 'male' ? '남' : '여'}
 - 사주팔자: ${sajuData.yearPillar} ${sajuData.monthPillar} ${sajuData.dayPillar} ${sajuData.hourPillar}
-- 년주(年柱): ${sajuData.yearPillar}
-- 월주(月柱): ${sajuData.monthPillar}
-- 일주(日柱): ${sajuData.dayPillar} (일간: ${sajuData.dayPillar[0]})
-- 시주(時柱): ${sajuData.hourPillar}
+- 일간: ${sajuData.dayPillar[0]} (${ELEMENT_KO[analysis.strength.dayElement]})
 - 띠: ${sajuData.animal}띠
-- 오행 분포: ${sajuData.ohaengCount}
 
-[사주 분석 결과]
-${analysisText}`;
+[사주 분석]
+- 신강/신약: ${analysis.strength.label}
+- 용신: ${analysis.yongshin.roles.yong.name || '없음'}
+- 기신: ${analysis.yongshin.roles.ki.name || '없음'}
+
+${luckContext}`;
 }
 
 // 전체 동적 컨텍스트 생성
@@ -167,8 +185,18 @@ function createDynamicContext(
     parts.push(`\n[사용자에 대해 기억하는 것들]\n${memories.map(m => `- ${m}`).join('\n')}`);
   }
 
-  // 오늘 날짜
-  parts.push(`\n오늘 날짜: ${new Date().toLocaleDateString('ko-KR')}`);
+  // 오늘 날짜와 현재 시간
+  const now = new Date();
+  const hour = now.getHours();
+  let timeOfDay = '';
+  if (hour >= 5 && hour < 9) timeOfDay = '아침';
+  else if (hour >= 9 && hour < 12) timeOfDay = '오전';
+  else if (hour >= 12 && hour < 14) timeOfDay = '점심';
+  else if (hour >= 14 && hour < 18) timeOfDay = '오후';
+  else if (hour >= 18 && hour < 21) timeOfDay = '저녁';
+  else timeOfDay = '밤';
+
+  parts.push(`\n현재: ${now.toLocaleDateString('ko-KR')} ${now.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })} (${timeOfDay})`);
 
   return parts.join('\n');
 }
@@ -251,6 +279,69 @@ export async function generateChatResponse(
     return '죄송합니다. 응답을 생성하는 데 문제가 발생했습니다.';
   } catch (error) {
     console.error('Claude API 오류:', error);
+    throw error;
+  }
+}
+
+// ============ 스트리밍 채팅 응답 생성 ============
+
+// 스트리밍 응답 생성 (SSE용)
+export async function* generateChatResponseStream(
+  userMessage: string,
+  chatHistory: ChatMessage[],
+  sajuData: SajuData | null,
+  user: User | null,
+  options: ChatResponseOptions = {}
+): AsyncGenerator<string, string, unknown> {
+  const client = getClient();
+
+  const { summary = null, memories = [] } = options;
+
+  // 동적 컨텍스트 생성
+  const dynamicContext = createDynamicContext(sajuData, user, summary, memories);
+
+  const messages = formatMessages(chatHistory);
+
+  // 현재 사용자 메시지 추가
+  messages.push({
+    role: 'user',
+    content: userMessage
+  });
+
+  let fullResponse = '';
+
+  try {
+    const stream = client.messages.stream({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 1024,
+      system: [
+        {
+          type: 'text',
+          text: STATIC_SYSTEM_PROMPT,
+          cache_control: { type: 'ephemeral' }
+        },
+        {
+          type: 'text',
+          text: dynamicContext
+        }
+      ],
+      messages: messages
+    });
+
+    // 스트리밍 이벤트 처리
+    for await (const event of stream) {
+      if (event.type === 'content_block_delta') {
+        const delta = event.delta;
+        if ('text' in delta) {
+          fullResponse += delta.text;
+          yield delta.text;
+        }
+      }
+    }
+
+    return fullResponse;
+  } catch (error) {
+    console.error('Claude API 스트리밍 오류:', error);
     throw error;
   }
 }

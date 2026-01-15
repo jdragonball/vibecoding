@@ -1,6 +1,6 @@
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { generateChatResponse, summarizeMessages, extractMemories, generateChatTitle } from '$lib/server/ai/claude';
+import { generateChatResponse, generateChatResponseStream, summarizeMessages, extractMemories, generateChatTitle } from '$lib/server/ai/claude';
 import {
   getFirstUser,
   getChatHistory,
@@ -30,7 +30,7 @@ const RECENT_MESSAGES_COUNT = 10;
 export const POST: RequestHandler = async ({ request }) => {
   try {
     const body = await request.json();
-    const { message, sessionId, action } = body;
+    const { message, sessionId, action, stream: useStream } = body;
 
     // 사용자 조회
     const user = getFirstUser();
@@ -47,7 +47,7 @@ export const POST: RequestHandler = async ({ request }) => {
       session = createChatSession(user.id, '새 대화');
     }
 
-    // 다시 생성 액션
+    // 다시 생성 액션 (스트리밍 지원)
     if (action === 'regenerate') {
       // 마지막 assistant 메시지 삭제
       deleteLastAssistantMessage(session.id);
@@ -65,7 +65,51 @@ export const POST: RequestHandler = async ({ request }) => {
       const chatHistory = getChatHistory(session.id, 10);
       const historyWithoutLast = chatHistory.slice(0, -1);
 
-      // Claude 응답 재생성
+      // 스트리밍 모드
+      if (useStream) {
+        const stream = new ReadableStream({
+          async start(controller) {
+            const encoder = new TextEncoder();
+            let fullResponse = '';
+
+            try {
+              const generator = generateChatResponseStream(
+                lastUserMsg.content,
+                historyWithoutLast,
+                sajuData,
+                user
+              );
+
+              for await (const chunk of generator) {
+                fullResponse += chunk;
+                // SSE 형식으로 전송
+                controller.enqueue(encoder.encode(`data: ${JSON.stringify({ chunk })}\n\n`));
+              }
+
+              // 응답 저장
+              saveChatMessage(session.id, user.id, 'assistant', fullResponse);
+
+              // 완료 신호
+              controller.enqueue(encoder.encode(`data: ${JSON.stringify({ done: true, sessionId: session.id })}\n\n`));
+              controller.close();
+            } catch (err) {
+              console.error('스트리밍 오류:', err);
+              controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: '응답 생성 중 오류가 발생했습니다.' })}\n\n`));
+              controller.close();
+            }
+          }
+        });
+
+        return new Response(stream, {
+          headers: {
+            'Content-Type': 'text/event-stream',
+            'Cache-Control': 'no-cache',
+            'Connection': 'keep-alive'
+          }
+        });
+      }
+
+      // 일반 모드
       const response = await generateChatResponse(
         lastUserMsg.content,
         historyWithoutLast,
@@ -104,7 +148,77 @@ export const POST: RequestHandler = async ({ request }) => {
     // 사용자 메시지 저장
     saveChatMessage(session.id, user.id, 'user', message);
 
-    // Claude 응답 생성 (요약과 메모리 포함)
+    const isFirstMessage = chatHistory.length === 0;
+
+    // 스트리밍 모드
+    if (useStream) {
+      const stream = new ReadableStream({
+        async start(controller) {
+          const encoder = new TextEncoder();
+          let fullResponse = '';
+
+          try {
+            const generator = generateChatResponseStream(
+              message,
+              chatHistory,
+              sajuData,
+              user,
+              {
+                summary: existingSummary?.summary || null,
+                memories: memoryContents
+              }
+            );
+
+            for await (const chunk of generator) {
+              fullResponse += chunk;
+              // SSE 형식으로 전송
+              controller.enqueue(encoder.encode(`data: ${JSON.stringify({ chunk })}\n\n`));
+            }
+
+            // 응답 저장
+            saveChatMessage(session.id, user.id, 'assistant', fullResponse);
+
+            // 첫 메시지면 AI로 세션 제목 생성 (백그라운드)
+            if (isFirstMessage) {
+              triggerTitleGeneration(session.id, message, fullResponse).catch(err => {
+                console.error('제목 생성 실패:', err);
+              });
+            }
+
+            // 백그라운드 작업들
+            const totalMessageCount = getMessageCount(session.id);
+            if (totalMessageCount > SUMMARY_TRIGGER_COUNT) {
+              triggerSummarization(session.id, totalMessageCount).catch(err => {
+                console.error('요약 생성 실패:', err);
+              });
+            }
+            if (totalMessageCount > 0 && totalMessageCount % 10 === 0) {
+              triggerMemoryExtraction(user.id, session.id, chatHistory).catch(err => {
+                console.error('메모리 추출 실패:', err);
+              });
+            }
+
+            // 완료 신호
+            controller.enqueue(encoder.encode(`data: ${JSON.stringify({ done: true, sessionId: session.id })}\n\n`));
+            controller.close();
+          } catch (err) {
+            console.error('스트리밍 오류:', err);
+            controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: '응답 생성 중 오류가 발생했습니다.' })}\n\n`));
+            controller.close();
+          }
+        }
+      });
+
+      return new Response(stream, {
+        headers: {
+          'Content-Type': 'text/event-stream',
+          'Cache-Control': 'no-cache',
+          'Connection': 'keep-alive'
+        }
+      });
+    }
+
+    // 일반 모드 (기존 코드)
     const response = await generateChatResponse(
       message,
       chatHistory,
@@ -120,7 +234,7 @@ export const POST: RequestHandler = async ({ request }) => {
     saveChatMessage(session.id, user.id, 'assistant', response);
 
     // 첫 메시지면 AI로 세션 제목 생성 (백그라운드)
-    if (chatHistory.length === 0) {
+    if (isFirstMessage) {
       triggerTitleGeneration(session.id, message, response).catch(err => {
         console.error('제목 생성 실패:', err);
       });

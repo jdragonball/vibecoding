@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { marked } from 'marked';
   import { Sparkle, PaperPlaneTilt } from 'phosphor-svelte';
@@ -13,14 +14,22 @@
   let messages: Array<{ role: 'user' | 'assistant'; content: string; createdAt: string }> = [];
   let inputMessage = '';
   let chatContainer: HTMLDivElement;
+  let inputElement: HTMLTextAreaElement;
   let tempSessionId: string | null = null;
+  let streamingContent = '';  // 스트리밍 중인 응답 내용
+
+  onMount(() => {
+    if (inputElement) {
+      inputElement.focus();
+    }
+  });
 
   function scrollToBottom() {
     setTimeout(() => {
       if (chatContainer) {
         chatContainer.scrollTop = chatContainer.scrollHeight;
       }
-    }, 100);
+    }, 50);
   }
 
   async function sendFirstMessage() {
@@ -48,6 +57,7 @@
     scrollToBottom();
 
     $isLoading = true;
+    streamingContent = '';
 
     try {
       const res = await fetch('/api/chat', {
@@ -55,42 +65,90 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           message: userMessage,
-          sessionId: null  // 새 세션 생성 요청
+          sessionId: null,  // 새 세션 생성 요청
+          stream: true      // 스트리밍 모드 활성화
         })
       });
 
-      const data = await res.json();
+      if (!res.ok) {
+        throw new Error('API 오류');
+      }
 
-      if (data.success) {
-        const realSessionId = data.sessionId;
+      const reader = res.body?.getReader();
+      const decoder = new TextDecoder();
+      let realSessionId: string | null = null;
 
-        // 임시 세션을 실제 세션으로 교체
-        $sessions = $sessions.map(s =>
-          s.id === tempSessionId
-            ? { ...s, id: realSessionId }
-            : s
-        );
-        $currentSessionId = realSessionId;
+      if (!reader) {
+        throw new Error('스트림을 읽을 수 없습니다');
+      }
 
-        // 실제 세션 페이지로 이동 (메시지 포함해서)
-        // 응답을 state로 전달하지 않고, 바로 이동 후 로드
-        goto(`/chat/${realSessionId}`, { replaceState: true });
-      } else {
-        // 실패 시 임시 세션 제거
-        $sessions = $sessions.filter(s => s.id !== tempSessionId);
+      // SSE 파싱
+      let buffer = '';
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const data = JSON.parse(line.slice(6));
+
+              if (data.chunk) {
+                streamingContent += data.chunk;
+                scrollToBottom();
+              }
+
+              if (data.done && data.sessionId) {
+                realSessionId = data.sessionId;
+
+                // 임시 세션을 실제 세션으로 교체
+                $sessions = $sessions.map(s =>
+                  s.id === tempSessionId
+                    ? { ...s, id: realSessionId! }
+                    : s
+                );
+                $currentSessionId = realSessionId;
+
+                // 스트리밍 완료 후 실제 세션 페이지로 이동
+                goto(`/chat/${realSessionId}`, { replaceState: true });
+              }
+
+              if (data.error) {
+                $sessions = $sessions.filter(s => s.id !== tempSessionId);
+                messages = [...messages, {
+                  role: 'assistant',
+                  content: data.error,
+                  createdAt: new Date().toISOString()
+                }];
+                streamingContent = '';
+              }
+            } catch (e) {
+              // JSON 파싱 실패 무시
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.error('메시지 전송 실패:', e);
+      $sessions = $sessions.filter(s => s.id !== tempSessionId);
+      if (streamingContent) {
         messages = [...messages, {
           role: 'assistant',
-          content: '죄송합니다. 응답을 생성하는 데 문제가 발생했습니다.',
+          content: streamingContent,
+          createdAt: new Date().toISOString()
+        }];
+      } else {
+        messages = [...messages, {
+          role: 'assistant',
+          content: '서버 연결에 실패했습니다.',
           createdAt: new Date().toISOString()
         }];
       }
-    } catch (e) {
-      $sessions = $sessions.filter(s => s.id !== tempSessionId);
-      messages = [...messages, {
-        role: 'assistant',
-        content: '서버 연결에 실패했습니다.',
-        createdAt: new Date().toISOString()
-      }];
+      streamingContent = '';
     } finally {
       $isLoading = false;
       scrollToBottom();
@@ -141,10 +199,15 @@
 
       {#if $isLoading}
         <div class="message assistant">
-          <div class="message-content typing">
-            <span class="dot"></span>
-            <span class="dot"></span>
-            <span class="dot"></span>
+          <div class="message-content" class:typing={!streamingContent}>
+            {#if streamingContent}
+              {@html renderMarkdown(streamingContent)}
+              <span class="cursor">▊</span>
+            {:else}
+              <span class="dot"></span>
+              <span class="dot"></span>
+              <span class="dot"></span>
+            {/if}
           </div>
         </div>
       {/if}
@@ -153,6 +216,7 @@
     <div class="chat-input-container">
       <textarea
         class="chat-input"
+        bind:this={inputElement}
         bind:value={inputMessage}
         onkeydown={handleKeydown}
         placeholder="메시지를 입력하세요..."
@@ -293,6 +357,18 @@
   @keyframes bounce {
     0%, 80%, 100% { transform: scale(0); }
     40% { transform: scale(1); }
+  }
+
+  .cursor {
+    display: inline-block;
+    animation: blink 1s infinite;
+    color: var(--gray-400);
+    font-weight: 300;
+  }
+
+  @keyframes blink {
+    0%, 50% { opacity: 1; }
+    51%, 100% { opacity: 0; }
   }
 
   .chat-input-container {

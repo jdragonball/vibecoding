@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { browser } from '$app/environment';
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
   import { marked } from 'marked';
@@ -15,12 +16,20 @@
   let messages: Array<{ id?: string; role: 'user' | 'assistant'; content: string; createdAt: string }> = [];
   let inputMessage = '';
   let chatContainer: HTMLDivElement;
+  let inputElement: HTMLTextAreaElement;
+  let streamingContent = '';  // 스트리밍 중인 응답 내용
+
+  onMount(() => {
+    if (inputElement) {
+      inputElement.focus();
+    }
+  });
 
   // URL에서 세션 ID 가져오기
   $: sessionId = $page.params.id;
 
-  // 세션 ID 변경 시 데이터 로드
-  $: if (sessionId) {
+  // 세션 ID 변경 시 데이터 로드 (브라우저에서만)
+  $: if (browser && sessionId) {
     $currentSessionId = sessionId;
     loadChatData(sessionId);
     // 2초 후 세션 목록 갱신 (AI 제목 생성 반영)
@@ -44,7 +53,7 @@
       if (chatContainer) {
         chatContainer.scrollTop = chatContainer.scrollHeight;
       }
-    }, 100);
+    }, 50);
   }
 
   async function loadChatData(id: string) {
@@ -61,6 +70,7 @@
     }
   }
 
+  // 스트리밍 메시지 전송
   async function sendMessage() {
     if (!inputMessage.trim() || $isLoading) return;
 
@@ -75,6 +85,7 @@
     scrollToBottom();
 
     $isLoading = true;
+    streamingContent = '';
 
     try {
       const res = await fetch('/api/chat', {
@@ -82,37 +93,90 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           message: userMessage,
-          sessionId: sessionId
+          sessionId: sessionId,
+          stream: true  // 스트리밍 모드 활성화
         })
       });
 
-      const data = await res.json();
+      if (!res.ok) {
+        throw new Error('API 오류');
+      }
 
-      if (data.success) {
+      const reader = res.body?.getReader();
+      const decoder = new TextDecoder();
+
+      if (!reader) {
+        throw new Error('스트림을 읽을 수 없습니다');
+      }
+
+      // SSE 파싱
+      let buffer = '';
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const data = JSON.parse(line.slice(6));
+
+              if (data.chunk) {
+                streamingContent += data.chunk;
+                scrollToBottom();
+              }
+
+              if (data.done) {
+                // 스트리밍 완료: 메시지 배열에 추가
+                messages = [...messages, {
+                  role: 'assistant',
+                  content: streamingContent,
+                  createdAt: new Date().toISOString()
+                }];
+                streamingContent = '';
+              }
+
+              if (data.error) {
+                messages = [...messages, {
+                  role: 'assistant',
+                  content: data.error,
+                  createdAt: new Date().toISOString()
+                }];
+                streamingContent = '';
+              }
+            } catch (e) {
+              // JSON 파싱 실패 무시
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.error('메시지 전송 실패:', e);
+      if (streamingContent) {
+        // 스트리밍 중 오류: 지금까지의 내용 저장
         messages = [...messages, {
           role: 'assistant',
-          content: data.response,
+          content: streamingContent || '서버 연결에 실패했습니다.',
           createdAt: new Date().toISOString()
         }];
       } else {
         messages = [...messages, {
           role: 'assistant',
-          content: '죄송합니다. 응답을 생성하는 데 문제가 발생했습니다.',
+          content: '서버 연결에 실패했습니다.',
           createdAt: new Date().toISOString()
         }];
       }
-    } catch (e) {
-      messages = [...messages, {
-        role: 'assistant',
-        content: '서버 연결에 실패했습니다.',
-        createdAt: new Date().toISOString()
-      }];
+      streamingContent = '';
     } finally {
       $isLoading = false;
       scrollToBottom();
     }
   }
 
+  // 스트리밍 다시 생성
   async function regenerateResponse() {
     if ($isLoading || !sessionId) return;
 
@@ -121,6 +185,7 @@
 
     messages = messages.slice(0, lastAssistantIndex);
     $isLoading = true;
+    streamingContent = '';
 
     try {
       const res = await fetch('/api/chat', {
@@ -128,31 +193,80 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'regenerate',
-          sessionId: sessionId
+          sessionId: sessionId,
+          stream: true  // 스트리밍 모드 활성화
         })
       });
 
-      const data = await res.json();
+      if (!res.ok) {
+        throw new Error('API 오류');
+      }
 
-      if (data.success) {
+      const reader = res.body?.getReader();
+      const decoder = new TextDecoder();
+
+      if (!reader) {
+        throw new Error('스트림을 읽을 수 없습니다');
+      }
+
+      let buffer = '';
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const data = JSON.parse(line.slice(6));
+
+              if (data.chunk) {
+                streamingContent += data.chunk;
+                scrollToBottom();
+              }
+
+              if (data.done) {
+                messages = [...messages, {
+                  role: 'assistant',
+                  content: streamingContent,
+                  createdAt: new Date().toISOString()
+                }];
+                streamingContent = '';
+              }
+
+              if (data.error) {
+                messages = [...messages, {
+                  role: 'assistant',
+                  content: data.error,
+                  createdAt: new Date().toISOString()
+                }];
+                streamingContent = '';
+              }
+            } catch (e) {
+              // JSON 파싱 실패 무시
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.error('다시 생성 실패:', e);
+      if (streamingContent) {
         messages = [...messages, {
           role: 'assistant',
-          content: data.response,
+          content: streamingContent,
           createdAt: new Date().toISOString()
         }];
       } else {
         messages = [...messages, {
           role: 'assistant',
-          content: '죄송합니다. 다시 생성하는 데 문제가 발생했습니다.',
+          content: '다시 생성하는 데 실패했습니다.',
           createdAt: new Date().toISOString()
         }];
       }
-    } catch (e) {
-      messages = [...messages, {
-        role: 'assistant',
-        content: '서버 연결에 실패했습니다.',
-        createdAt: new Date().toISOString()
-      }];
+      streamingContent = '';
     } finally {
       $isLoading = false;
       scrollToBottom();
@@ -196,10 +310,15 @@
 
     {#if $isLoading}
       <div class="message assistant">
-        <div class="message-content typing">
-          <span class="dot"></span>
-          <span class="dot"></span>
-          <span class="dot"></span>
+        <div class="message-content" class:typing={!streamingContent}>
+          {#if streamingContent}
+            {@html renderMarkdown(streamingContent)}
+            <span class="cursor">▊</span>
+          {:else}
+            <span class="dot"></span>
+            <span class="dot"></span>
+            <span class="dot"></span>
+          {/if}
         </div>
       </div>
     {/if}
@@ -208,6 +327,7 @@
   <div class="chat-input-container">
     <textarea
       class="chat-input"
+      bind:this={inputElement}
       bind:value={inputMessage}
       onkeydown={handleKeydown}
       placeholder="메시지를 입력하세요..."
@@ -324,6 +444,18 @@
   @keyframes bounce {
     0%, 80%, 100% { transform: scale(0); }
     40% { transform: scale(1); }
+  }
+
+  .cursor {
+    display: inline-block;
+    animation: blink 1s infinite;
+    color: var(--gray-400);
+    font-weight: 300;
+  }
+
+  @keyframes blink {
+    0%, 50% { opacity: 1; }
+    51%, 100% { opacity: 0; }
   }
 
   .chat-input-container {
