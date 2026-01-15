@@ -234,8 +234,8 @@ export function calculateSaju(birthInfo: BirthInfo): SajuResult {
   const dayPillar = toPillar(dayPillarSB);
   const hourPillar = toPillar(hourPillarSB);
 
-  // 띠 계산
-  const animal = computeAnimal(year, events);
+  // 띠 계산 (년주의 지지에서 가져옴)
+  const animal = ANIMALS[yearPillarSB.branchIndex];
 
   // 오행 분포
   const ohaengCount = calculateOhaengCount([yearPillar, monthPillar, dayPillar, hourPillar]);
