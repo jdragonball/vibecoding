@@ -1,34 +1,19 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
-  import { page } from '$app/stores';
   import { goto } from '$app/navigation';
   import { marked } from 'marked';
-  import { Sparkle, ArrowsClockwise, PaperPlaneTilt } from 'phosphor-svelte';
-  import { hasUser, userName, sessions, currentSessionId, isLoading, error } from '$lib/stores';
+  import { Sparkle, PaperPlaneTilt } from 'phosphor-svelte';
+  import { hasUser, userName, sessions, currentSessionId, isLoading } from '$lib/stores';
 
-  // marked 설정
-  marked.setOptions({
-    breaks: true,
-    gfm: true
-  });
+  marked.setOptions({ breaks: true, gfm: true });
 
   function renderMarkdown(text: string): string {
     return marked.parse(text) as string;
   }
 
-  // 채팅 관련
-  let messages: Array<{ id?: string; role: 'user' | 'assistant'; content: string; createdAt: string }> = [];
+  let messages: Array<{ role: 'user' | 'assistant'; content: string; createdAt: string }> = [];
   let inputMessage = '';
   let chatContainer: HTMLDivElement;
-
-  // URL에서 세션 ID 가져오기
-  $: {
-    const sessionParam = $page.url.searchParams.get('session');
-    if (sessionParam && sessionParam !== $currentSessionId) {
-      $currentSessionId = sessionParam;
-      loadChatData(sessionParam);
-    }
-  }
+  let tempSessionId: string | null = null;
 
   function scrollToBottom() {
     setTimeout(() => {
@@ -38,29 +23,24 @@
     }, 100);
   }
 
-  async function loadChatData(sessionId: string | null) {
-    try {
-      // 채팅 데이터 로드 (세션 목록 + 메시지)
-      const url = sessionId ? `/api/chat?sessionId=${sessionId}` : '/api/chat';
-      const res = await fetch(url);
-      if (res.ok) {
-        const data = await res.json();
-        $sessions = data.sessions || [];
-        messages = data.messages || [];
-        scrollToBottom();
-      }
-    } catch (e) {
-      console.error('채팅 데이터 로드 실패:', e);
-    }
-  }
-
-  async function sendMessage() {
+  async function sendFirstMessage() {
     if (!inputMessage.trim() || $isLoading) return;
 
     const userMessage = inputMessage.trim();
     inputMessage = '';
 
-    messages = [...messages, {
+    // 임시 세션 ID 생성
+    tempSessionId = 'temp-' + Date.now();
+
+    // 즉시 사이드바에 "새 대화" 추가
+    $sessions = [
+      { id: tempSessionId, title: '새 대화', updatedAt: new Date().toISOString() },
+      ...$sessions
+    ];
+    $currentSessionId = tempSessionId;
+
+    // 메시지 추가
+    messages = [{
       role: 'user',
       content: userMessage,
       createdAt: new Date().toISOString()
@@ -75,24 +55,29 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           message: userMessage,
-          sessionId: $currentSessionId
+          sessionId: null  // 새 세션 생성 요청
         })
       });
 
       const data = await res.json();
 
       if (data.success) {
-        messages = [...messages, {
-          role: 'assistant',
-          content: data.response,
-          createdAt: new Date().toISOString()
-        }];
-        $currentSessionId = data.sessionId;
-        // URL 업데이트
-        goto(`/chat?session=${data.sessionId}`, { replaceState: true });
-        // 세션 목록 새로고침
-        await loadChatData($currentSessionId);
+        const realSessionId = data.sessionId;
+
+        // 임시 세션을 실제 세션으로 교체
+        $sessions = $sessions.map(s =>
+          s.id === tempSessionId
+            ? { ...s, id: realSessionId }
+            : s
+        );
+        $currentSessionId = realSessionId;
+
+        // 실제 세션 페이지로 이동 (메시지 포함해서)
+        // 응답을 state로 전달하지 않고, 바로 이동 후 로드
+        goto(`/chat/${realSessionId}`, { replaceState: true });
       } else {
+        // 실패 시 임시 세션 제거
+        $sessions = $sessions.filter(s => s.id !== tempSessionId);
         messages = [...messages, {
           role: 'assistant',
           content: '죄송합니다. 응답을 생성하는 데 문제가 발생했습니다.',
@@ -100,52 +85,7 @@
         }];
       }
     } catch (e) {
-      messages = [...messages, {
-        role: 'assistant',
-        content: '서버 연결에 실패했습니다. 잠시 후 다시 시도해주세요.',
-        createdAt: new Date().toISOString()
-      }];
-    } finally {
-      $isLoading = false;
-      scrollToBottom();
-    }
-  }
-
-  async function regenerateResponse() {
-    if ($isLoading || !$currentSessionId) return;
-
-    const lastAssistantIndex = messages.findLastIndex(m => m.role === 'assistant');
-    if (lastAssistantIndex === -1) return;
-
-    messages = messages.slice(0, lastAssistantIndex);
-    $isLoading = true;
-
-    try {
-      const res = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'regenerate',
-          sessionId: $currentSessionId
-        })
-      });
-
-      const data = await res.json();
-
-      if (data.success) {
-        messages = [...messages, {
-          role: 'assistant',
-          content: data.response,
-          createdAt: new Date().toISOString()
-        }];
-      } else {
-        messages = [...messages, {
-          role: 'assistant',
-          content: '죄송합니다. 다시 생성하는 데 문제가 발생했습니다.',
-          createdAt: new Date().toISOString()
-        }];
-      }
-    } catch (e) {
+      $sessions = $sessions.filter(s => s.id !== tempSessionId);
       messages = [...messages, {
         role: 'assistant',
         content: '서버 연결에 실패했습니다.',
@@ -160,19 +100,12 @@
   function handleKeydown(event: KeyboardEvent) {
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault();
-      sendMessage();
+      sendFirstMessage();
     }
   }
 
-  onMount(() => {
-    const sessionParam = $page.url.searchParams.get('session');
-    if (sessionParam) {
-      $currentSessionId = sessionParam;
-      loadChatData(sessionParam);
-    } else if ($currentSessionId) {
-      loadChatData($currentSessionId);
-    }
-  });
+  // 새 채팅 페이지 진입 시 초기화
+  $currentSessionId = null;
 </script>
 
 <div class="chat-view">
@@ -194,7 +127,7 @@
         </div>
       {/if}
 
-      {#each messages as message, index}
+      {#each messages as message}
         <div class="message" class:user={message.role === 'user'} class:assistant={message.role === 'assistant'}>
           <div class="message-content">
             {#if message.role === 'assistant'}
@@ -203,13 +136,6 @@
               {message.content}
             {/if}
           </div>
-          {#if message.role === 'assistant' && index === messages.length - 1 && !$isLoading}
-            <div class="message-actions">
-              <button class="action-btn" onclick={regenerateResponse} title="다시 생성">
-                <ArrowsClockwise size={14} /> 다시 생성
-              </button>
-            </div>
-          {/if}
         </div>
       {/each}
 
@@ -235,7 +161,7 @@
       ></textarea>
       <button
         class="send-btn"
-        onclick={sendMessage}
+        onclick={sendFirstMessage}
         disabled={$isLoading || !inputMessage.trim()}
       >
         <PaperPlaneTilt size={20} weight="fill" />
@@ -294,9 +220,7 @@
     text-decoration: none;
   }
 
-  .primary-btn:hover {
-    background: var(--gray-800);
-  }
+  .primary-btn:hover { background: var(--gray-800); }
 
   .chat-container {
     flex: 1;
@@ -313,9 +237,7 @@
     color: var(--text-secondary);
   }
 
-  .chat-welcome strong {
-    color: var(--text);
-  }
+  .chat-welcome strong { color: var(--text); }
 
   .message {
     max-width: 75%;
@@ -324,13 +246,8 @@
     gap: var(--space-2);
   }
 
-  .message.user {
-    margin-left: auto;
-  }
-
-  .message.assistant {
-    margin-right: auto;
-  }
+  .message.user { margin-left: auto; }
+  .message.assistant { margin-right: auto; }
 
   .message-content {
     padding: var(--space-3) var(--space-4);
@@ -352,57 +269,8 @@
     box-shadow: var(--shadow-sm);
   }
 
-  .message-content :global(p) {
-    margin-bottom: var(--space-2);
-  }
-
-  .message-content :global(p:last-child) {
-    margin-bottom: 0;
-  }
-
-  .message-content :global(ul),
-  .message-content :global(ol) {
-    margin-left: var(--space-4);
-    margin-bottom: var(--space-2);
-  }
-
-  .message-content :global(li) {
-    margin-bottom: var(--space-1);
-  }
-
-  .message-content :global(strong) {
-    font-weight: 600;
-  }
-
-  .message-content :global(code) {
-    background: var(--gray-100);
-    padding: 2px 6px;
-    border-radius: var(--radius-sm);
-    font-size: 13px;
-  }
-
-  .message-actions {
-    display: flex;
-    gap: var(--space-2);
-  }
-
-  .action-btn {
-    display: flex;
-    align-items: center;
-    gap: var(--space-1);
-    padding: var(--space-1) var(--space-2);
-    font-size: 12px;
-    color: var(--text-muted);
-    border-radius: var(--radius-sm);
-    background: transparent;
-    border: none;
-    cursor: pointer;
-  }
-
-  .action-btn:hover {
-    background: var(--gray-100);
-    color: var(--text-secondary);
-  }
+  .message-content :global(p) { margin-bottom: var(--space-2); }
+  .message-content :global(p:last-child) { margin-bottom: 0; }
 
   .typing {
     display: flex;
@@ -451,9 +319,7 @@
     border-color: var(--gray-400);
   }
 
-  .chat-input:disabled {
-    opacity: 0.5;
-  }
+  .chat-input:disabled { opacity: 0.5; }
 
   .send-btn {
     width: 44px;
@@ -464,23 +330,14 @@
     background: var(--gray-900);
     color: var(--white);
     border-radius: var(--radius-lg);
-    font-size: 18px;
     border: none;
     cursor: pointer;
   }
 
-  .send-btn:hover:not(:disabled) {
-    background: var(--gray-800);
-  }
-
-  .send-btn:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
+  .send-btn:hover:not(:disabled) { background: var(--gray-800); }
+  .send-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
   @media (max-width: 640px) {
-    .message {
-      max-width: 85%;
-    }
+    .message { max-width: 85%; }
   }
 </style>

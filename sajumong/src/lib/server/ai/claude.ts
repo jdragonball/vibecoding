@@ -300,6 +300,53 @@ ${todayPillar}
   }
 }
 
+// ============ 채팅 제목 생성 ============
+
+// AI로 채팅 제목 생성 (Haiku 모델 - 빠르고 저렴)
+export async function generateChatTitle(
+  userMessage: string,
+  assistantResponse: string
+): Promise<string> {
+  const client = getClient();
+
+  const prompt = `다음 대화의 제목을 한국어로 짧게 만들어주세요.
+
+사용자: ${userMessage.substring(0, 200)}
+상담사: ${assistantResponse.substring(0, 200)}
+
+규칙:
+- 10자 이내로 핵심만
+- 이모지 없이
+- 명사형으로 끝내기 (예: "연애운 상담", "이직 고민", "오늘의 운세")
+
+제목:`;
+
+  try {
+    const response = await client.messages.create({
+      model: 'claude-3-5-haiku-20241022',
+      max_tokens: 30,
+      messages: [{ role: 'user', content: prompt }]
+    });
+
+    const textContent = response.content.find(block => block.type === 'text');
+    if (textContent && textContent.type === 'text') {
+      // 따옴표나 불필요한 문자 제거
+      let title = textContent.text.trim().replace(/["']/g, '');
+      // 너무 길면 자르기
+      if (title.length > 15) {
+        title = title.substring(0, 15) + '...';
+      }
+      return title;
+    }
+
+    return userMessage.length > 15 ? userMessage.substring(0, 15) + '...' : userMessage;
+  } catch (error) {
+    console.error('제목 생성 오류:', error);
+    // 실패 시 기존 방식으로 fallback
+    return userMessage.length > 15 ? userMessage.substring(0, 15) + '...' : userMessage;
+  }
+}
+
 // ============ Summarization (대화 요약) ============
 
 // 대화 요약 생성 (Haiku 모델 사용 - 저렴함)
@@ -328,7 +375,7 @@ ${formattedMessages}
 
   try {
     const response = await client.messages.create({
-      model: 'claude-haiku-4-20250514',  // 저렴한 Haiku 모델
+      model: 'claude-3-5-haiku-20241022',  // 저렴한 Haiku 모델
       max_tokens: 300,
       messages: [{ role: 'user', content: prompt }]
     });
@@ -384,7 +431,7 @@ JSON 배열로 응답해주세요. 기억할 게 없으면 빈 배열 []을 반�
 
   try {
     const response = await client.messages.create({
-      model: 'claude-haiku-4-20250514',  // 저렴한 Haiku 모델
+      model: 'claude-3-5-haiku-20241022',  // 저렴한 Haiku 모델
       max_tokens: 500,
       messages: [{ role: 'user', content: prompt }]
     });

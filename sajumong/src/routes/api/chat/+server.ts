@@ -1,6 +1,6 @@
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { generateChatResponse, summarizeMessages, extractMemories } from '$lib/server/ai/claude';
+import { generateChatResponse, summarizeMessages, extractMemories, generateChatTitle } from '$lib/server/ai/claude';
 import {
   getFirstUser,
   getChatHistory,
@@ -43,7 +43,8 @@ export const POST: RequestHandler = async ({ request }) => {
     if (sessionId) {
       session = { id: sessionId, userId: user.id };
     } else {
-      session = getOrCreateCurrentSession(user.id);
+      // sessionId가 없으면 새 세션 생성 (기존 세션 반환 X)
+      session = createChatSession(user.id, '새 대화');
     }
 
     // 다시 생성 액션
@@ -118,10 +119,11 @@ export const POST: RequestHandler = async ({ request }) => {
     // 응답 저장
     saveChatMessage(session.id, user.id, 'assistant', response);
 
-    // 첫 메시지면 세션 제목 자동 설정
+    // 첫 메시지면 AI로 세션 제목 생성 (백그라운드)
     if (chatHistory.length === 0) {
-      const title = message.length > 20 ? message.substring(0, 20) + '...' : message;
-      updateChatSessionTitle(session.id, title);
+      triggerTitleGeneration(session.id, message, response).catch(err => {
+        console.error('제목 생성 실패:', err);
+      });
     }
 
     // 백그라운드 작업: 메시지 수가 임계값 초과 시 요약 생성
@@ -256,6 +258,20 @@ export const PUT: RequestHandler = async () => {
 };
 
 // ============ 백그라운드 작업 함수들 ============
+
+// 채팅 제목 생성 트리거 (백그라운드)
+async function triggerTitleGeneration(
+  sessionId: string,
+  userMessage: string,
+  assistantResponse: string
+): Promise<void> {
+  console.log(`[Title] 세션 ${sessionId}: 제목 생성 시작`);
+
+  const title = await generateChatTitle(userMessage, assistantResponse);
+  updateChatSessionTitle(sessionId, title);
+
+  console.log(`[Title] 세션 ${sessionId}: "${title}" 저장 완료`);
+}
 
 // 대화 요약 트리거 (백그라운드)
 async function triggerSummarization(sessionId: string, totalMessageCount: number): Promise<void> {

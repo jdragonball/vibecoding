@@ -18,6 +18,7 @@
 
   // 현재 경로 확인
   $: currentPath = $page.url.pathname;
+  $: isChatPage = currentPath === '/chat' || currentPath.startsWith('/chat/');
 
   // 날짜 포맷
   function formatDate(dateStr: string): string {
@@ -43,7 +44,7 @@
   async function selectSession(sessionId: string) {
     $currentSessionId = sessionId;
     $showSidebar = false;
-    goto(`/chat?session=${sessionId}`);
+    goto(`/chat/${sessionId}`);
   }
 
   // 세션 삭제
@@ -154,10 +155,10 @@
         <nav class="nav">
           <a
             class="nav-btn"
-            class:active={currentPath === '/chat'}
+            class:active={isChatPage}
             href="/chat"
           >
-            <ChatCircle size={22} weight={currentPath === '/chat' ? 'fill' : 'regular'} />
+            <ChatCircle size={22} weight={isChatPage ? 'fill' : 'regular'} />
           </a>
           <a
             class="nav-btn"
