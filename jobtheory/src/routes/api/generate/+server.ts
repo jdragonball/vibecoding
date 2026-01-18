@@ -143,29 +143,44 @@ export const POST: RequestHandler = async ({ request }) => {
 
 		const response = await client.messages.create({
 			model: 'claude-sonnet-4-5-20250929',
-			max_tokens: 8192,
+			max_tokens: 16384,
 			messages: [{ role: 'user', content: userPrompt }],
-			system: systemPrompt
+			system: systemPrompt,
+			tools: [{
+				name: 'generate_report',
+				description: '사주와 MBTI 기반 맞춤형 리포트를 생성합니다',
+				input_schema: {
+					type: 'object',
+					properties: {
+						oneLiner: {
+							type: 'string',
+							description: '이 사람을 한 줄로 표현 (15자 내외)'
+						},
+						sections: {
+							type: 'array',
+							items: {
+								type: 'object',
+								properties: {
+									slot: { type: 'number' },
+									title: { type: 'string' },
+									content: { type: 'string' }
+								},
+								required: ['slot', 'title', 'content']
+							}
+						}
+					},
+					required: ['oneLiner', 'sections']
+				}
+			}],
+			tool_choice: { type: 'tool', name: 'generate_report' }
 		});
 
-		const content = response.content[0];
-		if (content.type !== 'text') {
-			throw new Error('Unexpected response type');
+		const toolUse = response.content.find(block => block.type === 'tool_use');
+		if (!toolUse || toolUse.type !== 'tool_use') {
+			throw new Error('No tool use in response');
 		}
 
-		let reportData;
-		try {
-			const jsonMatch = content.text.match(/\{[\s\S]*\}/);
-			if (jsonMatch) {
-				reportData = JSON.parse(jsonMatch[0]);
-			} else {
-				throw new Error('No JSON found');
-			}
-		} catch (parseError) {
-			console.error('JSON Parse Error:', parseError);
-			console.error('Raw response:', content.text);
-			throw new Error('Failed to parse AI response');
-		}
+		const reportData = toolUse.input as { oneLiner: string; sections: Array<{ slot: number; title: string; content: string }> };
 
 		// 섹션에 emoji 추가
 		const sectionsWithEmoji = reportData.sections.map((section: { slot: number; title: string; content: string }) => {
