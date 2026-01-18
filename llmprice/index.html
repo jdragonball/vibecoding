@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LLMPrice - LLM API 가격 비교</title>
+  <meta name="description" content="OpenAI, Anthropic Claude, Google Gemini API 가격을 한눈에 비교하세요">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <h1>LLMPrice</h1>
+      <p class="subtitle">LLM API 가격 비교</p>
+    </div>
+  </header>
+
+  <main class="container">
+    <section class="filters">
+      <div class="filter-group">
+        <label>제공업체</label>
+        <div class="checkbox-group" id="provider-filters">
+          <label><input type="checkbox" value="OpenAI" checked> OpenAI</label>
+          <label><input type="checkbox" value="Anthropic" checked> Anthropic</label>
+          <label><input type="checkbox" value="Google" checked> Google</label>
+        </div>
+      </div>
+
+      <div class="filter-group">
+        <label>카테고리</label>
+        <div class="checkbox-group" id="category-filters">
+          <label><input type="checkbox" value="flagship" checked> Flagship</label>
+          <label><input type="checkbox" value="balanced" checked> Balanced</label>
+          <label><input type="checkbox" value="budget" checked> Budget</label>
+          <label><input type="checkbox" value="reasoning" checked> Reasoning</label>
+        </div>
+      </div>
+
+    </section>
+
+    <section class="pricing-table-container">
+      <table class="pricing-table" id="pricing-table">
+        <thead>
+          <tr>
+            <th class="sortable" data-sort="name">모델 <span class="sort-icon"></span></th>
+            <th class="sortable" data-sort="provider">제공업체 <span class="sort-icon"></span></th>
+            <th class="sortable" data-sort="inputPrice">Input<br><small>($/1M tokens)</small> <span class="sort-icon"></span></th>
+            <th class="sortable" data-sort="outputPrice">Output<br><small>($/1M tokens)</small> <span class="sort-icon"></span></th>
+            <th>Long Context<br><small>(Input/Output)</small></th>
+            <th class="sortable" data-sort="contextWindow">Context <span class="sort-icon"></span></th>
+            <th>카테고리</th>
+          </tr>
+        </thead>
+        <tbody id="pricing-tbody">
+        </tbody>
+      </table>
+    </section>
+
+    <section class="info">
+      <p class="last-updated">마지막 업데이트: <span id="last-updated"></span></p>
+      <p class="disclaimer">※ 가격은 변동될 수 있습니다. 정확한 가격은 각 제공업체 공식 문서를 확인하세요.</p>
+    </section>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>LLMPrice - 오픈소스 LLM API 가격 비교 도구</p>
+      <p class="links">
+        <a href="https://openai.com/api/pricing/" target="_blank">OpenAI</a> |
+        <a href="https://www.anthropic.com/pricing" target="_blank">Anthropic</a> |
+        <a href="https://ai.google.dev/gemini-api/docs/pricing" target="_blank">Google</a>
+      </p>
+    </div>
+  </footer>
+
+  <script src="js/app.js"></script>
+</body>
+</html>
