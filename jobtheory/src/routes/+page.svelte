@@ -59,15 +59,14 @@
 		return () => clearInterval(interval);
 	});
 
-	// Validation
+	// Validation (고민은 선택사항)
 	let isFormValid = $derived(
 		name.trim() !== '' &&
 		birthYear !== '' &&
 		birthMonth !== '' &&
 		birthDay !== '' &&
 		gender !== '' &&
-		mbti !== '' &&
-		concern.trim().length >= 10
+		mbti !== ''
 	);
 
 	async function handleSubmit() {
@@ -218,9 +217,6 @@
 					></textarea>
 					<p class="input-hint">
 						구체적으로 써주실수록 더 정확한 이야기를 들려드릴 수 있어요
-						<span class="char-count" class:warning={concern.length > 0 && concern.length < 10}>
-							{concern.length}/10자 이상
-						</span>
 					</p>
 				</div>
 

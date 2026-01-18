@@ -33,6 +33,9 @@ export function buildSystemPrompt(saju: SajuInfo, mbti: string, name: string): s
 ## MBTI ${mbti} 통합
 사주와 MBTI가 충돌하면: "겉으로는 ~하지만, 내면 깊은 곳에서는 ~"
 
+## 고민이 없을 경우
+사용자가 고민을 입력하지 않으면, 사주와 MBTI 조합을 분석해서 "이 유형이 인생에서 가장 자주 마주하는 고민"을 추론하여 리포트를 작성하세요.
+
 ## 출력 형식
 반드시 아래 JSON 형식으로만 응답하세요. 다른 텍스트 없이 JSON만:
 
@@ -115,15 +118,20 @@ interface UserPromptParams {
 export function buildUserPrompt(params: UserPromptParams): string {
 	const { name, gender, mbti, saju, concern } = params;
 
+	const concernSection = concern.trim()
+		? `## 사용자의 고민 (이것이 가장 중요합니다)
+"${concern}"
+
+이 고민에 집중하여 10개 섹션 모두 작성해주세요. 특히 slot 6~9는 이 고민에 직접적으로 답하는 내용이어야 합니다.`
+		: `## 사용자의 고민
+(미입력) 사주와 MBTI를 기반으로 이 사람이 가장 공감할 만한 핵심 고민을 추론하여 리포트를 작성해주세요.`;
+
 	return `## 사용자 정보
 - 이름: ${name}
 - 성별: ${gender}
 - MBTI: ${mbti}
-- 사주 사주: ${saju.yearPillar}년 ${saju.monthPillar}월 ${saju.dayPillar}일 ${saju.hourPillar}시
+- 사주: ${saju.yearPillar}년 ${saju.monthPillar}월 ${saju.dayPillar}일 ${saju.hourPillar}시
 - 일간: ${saju.dayMaster} (${saju.dayMasterElement} - ${saju.dayMasterMeaning})
 
-## 사용자의 고민 (이것이 가장 중요합니다)
-"${concern}"
-
-이 고민에 집중하여 10개 섹션 모두 작성해주세요. 특히 slot 6~9는 이 고민에 직접적으로 답하는 내용이어야 합니다.`;
+${concernSection}`;
 }
