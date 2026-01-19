@@ -12,6 +12,11 @@
 			saju: {
 				dayMaster: string;
 				dayMasterElement: string;
+				yearPillar?: string;
+				monthPillar?: string;
+				dayPillar?: string;
+				hourPillar?: string;
+				dayMasterMeaning?: string;
 			};
 			report: {
 				oneLiner: string;
