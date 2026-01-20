@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tabigo - 일본 여행 회화</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header>
+    <h1>旅語 <span class="sub">타비고</span></h1>
+    <p class="tagline">일본인이 먼저 말 걸어올 때, 당황하지 않게</p>
+    <div class="search-box">
+      <input type="text" id="search" placeholder="검색 (예: 봉투, 카드, 몇명)">
+    </div>
+  </header>
+
+  <nav class="categories">
+    <button class="cat-btn active" data-category="all">전체</button>
+    <button class="cat-btn" data-category="convenience">편의점</button>
+    <button class="cat-btn" data-category="restaurant">식당</button>
+    <button class="cat-btn" data-category="hotel">호텔</button>
+    <button class="cat-btn" data-category="shopping">쇼핑</button>
+    <button class="cat-btn" data-category="transport">교통</button>
+    <button class="cat-btn" data-category="basic">기본</button>
+  </nav>
+
+  <main id="content">
+    <!-- 동적으로 생성 -->
+  </main>
+
+  <footer>
+    <p>여행 중 들을 수 있는 일본어 표현 모음</p>
+  </footer>
+
+  <script src="data.js"></script>
+  <script src="script.js"></script>
+</body>
+</html>
