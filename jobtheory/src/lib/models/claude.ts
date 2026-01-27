@@ -24,24 +24,33 @@ function parseSections(input: unknown): Section[] {
 
 	// sections가 문자열이면 JSON 파싱 시도
 	if (typeof sections === 'string') {
+		const rawString = sections;
+
 		try {
 			// 먼저 그대로 파싱 시도
-			sections = JSON.parse(sections);
-		} catch (e1) {
-			// 실패하면 잘린 JSON 복구 시도
-			try {
-				let fixed = sections as string;
-				// 마지막 완전한 객체까지만 추출
-				const lastCompleteObj = fixed.lastIndexOf('}');
-				if (lastCompleteObj > 0) {
-					fixed = fixed.substring(0, lastCompleteObj + 1) + ']';
-				}
-				sections = JSON.parse(fixed);
-				console.log('Recovered truncated JSON, got', (sections as Section[]).length, 'sections');
-			} catch (e2) {
-				console.error('JSON parse failed. Original error:', e1);
-				console.error('Recovery error:', e2);
-				console.error('Raw string (first 500 chars):', (sections as string).substring(0, 500));
+			sections = JSON.parse(rawString);
+		} catch {
+			// 실패하면 개별 객체 추출 시도
+			console.log('JSON parse failed, trying to extract individual objects...');
+
+			const extracted: Section[] = [];
+			// 각 객체 패턴 매칭: {"slot":..., "title":..., "content":...}
+			const regex = /\{\s*"slot"\s*:\s*(\d+)\s*,\s*"title"\s*:\s*"([^"]*(?:\\.[^"]*)*)"\s*,\s*"content"\s*:\s*"([^"]*(?:\\.[^"]*)*)"\s*\}/g;
+
+			let match;
+			while ((match = regex.exec(rawString)) !== null) {
+				extracted.push({
+					slot: parseInt(match[1]),
+					title: match[2].replace(/\\"/g, '"').replace(/\\n/g, '\n'),
+					content: match[3].replace(/\\"/g, '"').replace(/\\n/g, '\n')
+				});
+			}
+
+			if (extracted.length > 0) {
+				console.log('Extracted', extracted.length, 'complete sections from truncated JSON');
+				sections = extracted;
+			} else {
+				console.error('Could not extract any sections. Raw (first 1000 chars):', rawString.substring(0, 1000));
 				throw new Error('Failed to parse sections string');
 			}
 		}
@@ -66,8 +75,16 @@ export class ClaudeProvider implements LLMProvider {
 		const freeStrengths = freeContext.strengths.map(s => s.title).join(', ');
 		const freeWeaknesses = freeContext.weaknesses.map(w => w.title).join(', ');
 
+		// 현재 날짜
+		const now = new Date();
+		const currentDate = `${now.getFullYear()}년 ${now.getMonth() + 1}월 ${now.getDate()}일`;
+
 		// 공통 컨텍스트
-		const baseContext = `## 사용자 정보
+		const baseContext = `## 현재 시점
+- 오늘 날짜: ${currentDate}
+- 운세 분석 시 이 날짜 기준으로 "현재", "올해", "내년" 등을 정확히 사용하세요.
+
+## 사용자 정보
 - 이름: ${name}
 - 성별: ${gender}
 - MBTI: ${mbti}
@@ -128,7 +145,7 @@ ${concern.trim() || '(미입력 - 사주/MBTI 기반으로 추론)'}`;
 	private async generatePart1(name: string, mbti: string, context: string, system: string): Promise<Section[]> {
 		const response = await client.messages.create({
 			model: 'claude-sonnet-4-5-20250929',
-			max_tokens: 4096,
+			max_tokens: 16384,
 			system,
 			messages: [{
 				role: 'user',
@@ -187,28 +204,28 @@ ${concern.trim() || '(미입력 - 사주/MBTI 기반으로 추론)'}`;
 	private async generatePart2(name: string, concern: string, context: string, system: string, previewTitles: string[]): Promise<Section[]> {
 		// 무료에서 약속한 제목들
 		const title6 = previewTitles[0] || '고민의 근본 원인';
-		const title7 = previewTitles[1] || '2025-2026년 운세 흐름';
+		const title7 = previewTitles[1] || '현재 시기의 의미';
 		const title8 = previewTitles[2] || '고민에 대한 핵심 조언';
 		const title9 = previewTitles[3] || '구체적인 행동 가이드';
 
 		const response = await client.messages.create({
 			model: 'claude-sonnet-4-5-20250929',
-			max_tokens: 8192,
+			max_tokens: 16384,
 			system,
 			messages: [{
 				role: 'user',
 				content: `${context}
 
-아래 4개 섹션을 작성하세요. 각 섹션은 2문단입니다. 간결하게 작성하세요.
+4개 섹션 작성. 각 섹션 content는 2-3문단.
 
-섹션 6 (slot: 6) - 제목: "${title6}" - 고민의 근본 원인
-섹션 7 (slot: 7) - 제목: "${title7}" - 현재 시기의 의미
-섹션 8 (slot: 8) - 제목: "${title8}" - 핵심 조언
-섹션 9 (slot: 9) - 제목: "${title9}" - 실천사항`
+- slot 6: "${title6}"
+- slot 7: "${title7}"
+- slot 8: "${title8}"
+- slot 9: "${title9}"`
 			}],
 			tools: [{
 				name: 'write_sections',
-				description: '섹션 4개 작성',
+				description: '4개 섹션 작성',
 				input_schema: {
 					type: 'object' as const,
 					properties: {
@@ -239,7 +256,7 @@ ${concern.trim() || '(미입력 - 사주/MBTI 기반으로 추론)'}`;
 		try {
 			return parseSections(toolUse.input);
 		} catch (e) {
-			console.error('Part 2 parse error:', e, 'input:', JSON.stringify(toolUse.input));
+			console.error('Part 2 parse error:', e, 'input:', JSON.stringify(toolUse.input).substring(0, 1000));
 			throw new Error('Part 2 failed: ' + (e as Error).message);
 		}
 	}
@@ -251,7 +268,7 @@ ${concern.trim() || '(미입력 - 사주/MBTI 기반으로 추론)'}`;
 
 		const response = await client.messages.create({
 			model: 'claude-sonnet-4-5-20250929',
-			max_tokens: 2048,
+			max_tokens: 8192,
 			system,
 			messages: [{
 				role: 'user',

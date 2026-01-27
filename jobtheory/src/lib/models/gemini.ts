@@ -10,7 +10,16 @@ export class GeminiProvider implements LLMProvider {
 	async generateFreeReport(params: ReportParams): Promise<FreeReportResult> {
 		const { name, gender, mbti, saju, concern } = params;
 
+		// 현재 날짜
+		const now = new Date();
+		const currentYear = now.getFullYear();
+		const currentMonth = now.getMonth() + 1;
+
 		const prompt = `당신은 사주명리와 MBTI를 결합한 성격 분석 전문가입니다.
+
+## 현재 시점
+- 오늘: ${currentYear}년 ${currentMonth}월
+- 운세/시기 언급 시 이 날짜 기준으로 정확히 작성하세요.
 
 ## 사용자 정보
 - 이름: ${name}
@@ -49,7 +58,7 @@ ${concern ? `- 고민: ${concern}` : ''}
   "preview": {
     "sectionTitles": [
       "${concern ? '고민의 근본 원인을 분석하는 창의적 제목' : '이 유형이 자주 겪는 고민'}",
-      "2025-2026년 운세와 시기의 의미를 담은 제목",
+      "현재 시기와 운세의 의미를 담은 제목",
       "고민에 대한 핵심 조언/해결책을 담은 제목",
       "구체적인 행동 가이드를 담은 제목",
       "${name}님에게 전하는 따뜻한 마무리 제목"
