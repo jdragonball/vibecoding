@@ -67,10 +67,15 @@
 		'당신만의 유형을 찾고 있어요'
 	];
 
-	const partLabels: Record<number, string> = {
-		1: '나를 알기',
-		2: '고민 분석',
-		3: '앞으로'
+	// 고민 유무에 따라 Part 2 라벨 동적 변경
+	const getPartLabel = (part: number): string => {
+		if (part === 1) return '나를 알기';
+		if (part === 2) {
+			const concern = originalRequest?.concern as string | undefined;
+			return concern?.trim() ? '고민 분석' : '심층 분석';
+		}
+		if (part === 3) return '앞으로';
+		return '';
 	};
 
 	// 천간/지지 분리 함수
@@ -273,7 +278,7 @@
 		});
 		return Object.entries(grouped).map(([part, secs]) => ({
 			part: parseInt(part),
-			label: partLabels[parseInt(part)] || '',
+			label: getPartLabel(parseInt(part)),
 			sections: secs
 		}));
 	}
