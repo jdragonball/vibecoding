@@ -282,6 +282,17 @@
 			sections: secs
 		}));
 	}
+
+	// MBTI 특성 바 데이터
+	function getMbtiTraits(mbtiType: string): { label: string; left: string; right: string; value: number }[] {
+		const traits = [
+			{ label: '에너지', left: 'E', right: 'I', value: mbtiType[0] === 'E' ? 65 : 35 },
+			{ label: '인식', left: 'S', right: 'N', value: mbtiType[1] === 'S' ? 65 : 35 },
+			{ label: '판단', left: 'T', right: 'F', value: mbtiType[2] === 'T' ? 65 : 35 },
+			{ label: '생활', left: 'J', right: 'P', value: mbtiType[3] === 'J' ? 65 : 35 }
+		];
+		return traits;
+	}
 </script>
 
 <svelte:head>
@@ -361,18 +372,44 @@
 		<!-- 히어로 영역 -->
 		<section class="report-hero">
 			<div class="container">
-				<div class="hero-badge">
-					<span class="tag">{mbti}</span>
-					<span class="tag">{saju.dayMaster}{saju.dayMasterElement}</span>
+				<div class="hero-top-badge">
+					<span class="hero-mbti">{mbti}</span>
+					<span class="hero-saju">{saju.dayMaster}({saju.dayMasterElement})</span>
 				</div>
-				<p class="type-name">{freeReport.typeName}</p>
-				<h1 class="report-title">{name}님의 사용설명서</h1>
-				<p class="report-subtitle">"{freeReport.oneLiner}"</p>
+				<p class="type-label">당신의 유형</p>
+				<h1 class="type-name-big">{freeReport.typeName}</h1>
+				<p class="hero-oneliner">"{freeReport.oneLiner}"</p>
 
 				<div class="keywords">
 					{#each freeReport.keywords as keyword}
-						<span class="keyword-tag">{keyword}</span>
+						<span class="keyword-tag">#{keyword}</span>
 					{/each}
+				</div>
+			</div>
+		</section>
+
+		<!-- MBTI 특성 바 -->
+		<section class="traits-bar-section">
+			<div class="container">
+				<div class="traits-bar-card">
+					<h3 class="traits-bar-title">성격 특성</h3>
+					<div class="traits-bars">
+						{#each getMbtiTraits(mbti) as trait}
+							<div class="trait-bar-row">
+								<span class="trait-bar-left" class:active={trait.value > 50}>{trait.left}</span>
+								<div class="trait-bar-track">
+									<div
+										class="trait-bar-fill"
+										class:fill-left={trait.value > 50}
+										class:fill-right={trait.value <= 50}
+										style="width: {Math.abs(trait.value - 50) * 2}%; {trait.value > 50 ? 'right: 50%' : 'left: 50%'}"
+									></div>
+									<div class="trait-bar-center"></div>
+								</div>
+								<span class="trait-bar-right" class:active={trait.value <= 50}>{trait.right}</span>
+							</div>
+						{/each}
+					</div>
 				</div>
 			</div>
 		</section>
@@ -386,41 +423,44 @@
 			</div>
 		</section>
 
-		<!-- 강점/약점 -->
-		<section class="traits-section">
+		<!-- 강점 섹션 -->
+		<section class="strength-section">
 			<div class="container">
-				<div class="traits-grid">
-					<!-- 강점 -->
-					<div class="trait-card card">
-						<h3 class="trait-header strengths-header">
-							<span class="trait-icon">✦</span>
-							강점
-						</h3>
-						<ul class="trait-list">
-							{#each freeReport.strengths as item}
-								<li class="trait-item">
-									<span class="trait-title">{item.title}</span>
-									<span class="trait-desc">{item.description}</span>
-								</li>
-							{/each}
-						</ul>
-					</div>
+				<div class="section-header-big">
+					<span class="section-icon-big">✦</span>
+					<h2 class="section-title-big">강점</h2>
+				</div>
+				<div class="traits-grid-2col">
+					{#each freeReport.strengths as item}
+						<div class="trait-card-new strength-card">
+							<div class="trait-check strength-check">✓</div>
+							<div class="trait-content">
+								<h4 class="trait-title-new">{item.title}</h4>
+								<p class="trait-desc-new">{item.description}</p>
+							</div>
+						</div>
+					{/each}
+				</div>
+			</div>
+		</section>
 
-					<!-- 약점 -->
-					<div class="trait-card card">
-						<h3 class="trait-header weaknesses-header">
-							<span class="trait-icon">○</span>
-							약점
-						</h3>
-						<ul class="trait-list">
-							{#each freeReport.weaknesses as item}
-								<li class="trait-item">
-									<span class="trait-title">{item.title}</span>
-									<span class="trait-desc">{item.description}</span>
-								</li>
-							{/each}
-						</ul>
-					</div>
+		<!-- 약점 섹션 -->
+		<section class="weakness-section">
+			<div class="container">
+				<div class="section-header-big">
+					<span class="section-icon-big">○</span>
+					<h2 class="section-title-big">약점</h2>
+				</div>
+				<div class="traits-grid-2col">
+					{#each freeReport.weaknesses as item}
+						<div class="trait-card-new weakness-card">
+							<div class="trait-check weakness-check">!</div>
+							<div class="trait-content">
+								<h4 class="trait-title-new">{item.title}</h4>
+								<p class="trait-desc-new">{item.description}</p>
+							</div>
+						</div>
+					{/each}
 				</div>
 			</div>
 		</section>
@@ -603,58 +643,59 @@
 		color: var(--text-primary);
 	}
 
-	/* 사주 원국표 */
+	/* 사주 원국표 - 컴팩트 */
 	.saju-section {
-		padding: var(--space-xl) 0;
-		background: var(--bg-secondary);
+		padding: var(--space-lg) 0;
+		background: var(--bg-card);
+		border-bottom: 1px solid var(--border-light);
 	}
 
 	.saju-card {
-		max-width: 400px;
+		max-width: 500px;
 		margin: 0 auto;
 		text-align: center;
-		padding: var(--space-xl);
+		padding: var(--space-md);
 	}
 
 	.saju-title {
-		font-size: var(--font-size-sm);
+		font-size: var(--font-size-xs);
 		font-weight: 600;
-		color: var(--text-secondary);
+		color: var(--text-muted);
 		text-transform: uppercase;
 		letter-spacing: 0.1em;
-		margin-bottom: var(--space-lg);
+		margin-bottom: var(--space-md);
 	}
 
 	.saju-table {
 		display: flex;
 		justify-content: center;
-		gap: var(--space-md);
-		margin-bottom: var(--space-lg);
+		gap: var(--space-sm);
+		margin-bottom: var(--space-md);
 	}
 
 	.saju-column {
 		display: flex;
 		flex-direction: column;
 		align-items: center;
-		gap: var(--space-xs);
+		gap: 2px;
 	}
 
 	.saju-label {
-		font-size: var(--font-size-xs);
+		font-size: 10px;
 		color: var(--text-muted);
 	}
 
 	.saju-stem, .saju-branch {
-		width: 48px;
-		height: 48px;
+		width: 40px;
+		height: 40px;
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		font-size: var(--font-size-xl);
+		font-size: var(--font-size-lg);
 		font-weight: 600;
 		border: 1px solid var(--border-light);
-		border-radius: var(--radius-md);
-		background: var(--bg-card);
+		border-radius: var(--radius-sm);
+		background: var(--bg-secondary);
 	}
 
 	.saju-stem.highlight {
@@ -663,51 +704,73 @@
 		border-color: var(--accent-warm);
 	}
 
-	.saju-branch {
-		background: var(--bg-secondary);
-	}
-
 	.saju-info {
-		font-size: var(--font-size-sm);
-		color: var(--text-secondary);
+		font-size: var(--font-size-xs);
+		color: var(--text-muted);
 	}
 
 	.saju-info strong {
-		color: var(--text-accent);
+		color: var(--accent-warm);
 	}
 
-	/* 히어로 */
+	/* 히어로 - 16personalities 스타일 */
 	.report-hero {
-		padding: var(--space-2xl) 0;
+		padding: var(--space-3xl) 0 var(--space-2xl);
 		text-align: center;
+		background: linear-gradient(180deg, var(--bg-accent) 0%, var(--bg-primary) 100%);
 	}
 
-	.hero-badge {
+	.hero-top-badge {
 		display: flex;
 		justify-content: center;
-		gap: var(--space-sm);
-		margin-bottom: var(--space-md);
+		gap: var(--space-md);
+		margin-bottom: var(--space-lg);
 	}
 
-	.type-name {
-		font-size: var(--font-size-sm);
+	.hero-mbti {
+		padding: var(--space-sm) var(--space-lg);
+		background: var(--accent-warm);
+		color: white;
+		font-weight: 700;
+		font-size: var(--font-size-lg);
+		border-radius: var(--radius-md);
+		letter-spacing: 0.05em;
+	}
+
+	.hero-saju {
+		padding: var(--space-sm) var(--space-lg);
+		background: var(--bg-card);
+		border: 2px solid var(--accent-warm);
 		color: var(--accent-warm);
 		font-weight: 600;
-		text-transform: uppercase;
-		letter-spacing: 0.1em;
-		margin-bottom: var(--space-sm);
-	}
-
-	.report-title {
-		font-size: var(--font-size-2xl);
-		margin-bottom: var(--space-sm);
-	}
-
-	.report-subtitle {
-		color: var(--text-accent);
 		font-size: var(--font-size-lg);
+		border-radius: var(--radius-md);
+	}
+
+	.type-label {
+		font-size: var(--font-size-sm);
+		color: var(--text-muted);
+		text-transform: uppercase;
+		letter-spacing: 0.15em;
+		margin-bottom: var(--space-sm);
+	}
+
+	.type-name-big {
+		font-size: clamp(2rem, 8vw, 3.5rem);
+		font-weight: 800;
+		color: var(--accent-warm);
+		margin-bottom: var(--space-md);
+		line-height: 1.2;
+	}
+
+	.hero-oneliner {
+		font-size: var(--font-size-xl);
+		color: var(--text-secondary);
 		font-style: italic;
-		margin-bottom: var(--space-lg);
+		margin-bottom: var(--space-xl);
+		max-width: 600px;
+		margin-left: auto;
+		margin-right: auto;
 	}
 
 	.keywords {
@@ -718,278 +781,435 @@
 	}
 
 	.keyword-tag {
-		padding: var(--space-xs) var(--space-md);
-		background: var(--bg-accent);
+		padding: var(--space-sm) var(--space-md);
+		background: var(--bg-card);
+		border: 1px solid var(--border-light);
 		border-radius: var(--radius-full);
 		font-size: var(--font-size-sm);
-		color: var(--text-accent);
+		color: var(--text-secondary);
+		font-weight: 500;
 	}
 
-	/* 성격 설명 */
+	/* MBTI 특성 바 */
+	.traits-bar-section {
+		padding: var(--space-2xl) 0;
+		background: var(--bg-primary);
+	}
+
+	.traits-bar-card {
+		max-width: 500px;
+		margin: 0 auto;
+		background: var(--bg-card);
+		border-radius: var(--radius-lg);
+		padding: var(--space-xl);
+		box-shadow: 0 4px 24px rgba(0, 0, 0, 0.06);
+	}
+
+	.traits-bar-title {
+		text-align: center;
+		font-size: var(--font-size-sm);
+		text-transform: uppercase;
+		letter-spacing: 0.1em;
+		color: var(--text-muted);
+		margin-bottom: var(--space-xl);
+	}
+
+	.traits-bars {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-lg);
+	}
+
+	.trait-bar-row {
+		display: flex;
+		align-items: center;
+		gap: var(--space-md);
+	}
+
+	.trait-bar-left,
+	.trait-bar-right {
+		width: 32px;
+		height: 32px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		font-weight: 700;
+		font-size: var(--font-size-sm);
+		border-radius: var(--radius-sm);
+		color: var(--text-muted);
+		background: var(--bg-secondary);
+	}
+
+	.trait-bar-left.active,
+	.trait-bar-right.active {
+		background: var(--accent-warm);
+		color: white;
+	}
+
+	.trait-bar-track {
+		flex: 1;
+		height: 8px;
+		background: var(--bg-secondary);
+		border-radius: var(--radius-full);
+		position: relative;
+		overflow: hidden;
+	}
+
+	.trait-bar-fill {
+		position: absolute;
+		top: 0;
+		height: 100%;
+		background: var(--accent-warm);
+		border-radius: var(--radius-full);
+	}
+
+	.trait-bar-center {
+		position: absolute;
+		left: 50%;
+		top: -2px;
+		bottom: -2px;
+		width: 2px;
+		background: var(--border-light);
+		transform: translateX(-50%);
+	}
+
+	/* 성격 설명 - 16personalities 스타일 */
 	.description-section {
-		padding: var(--space-xl) 0;
+		padding: var(--space-3xl) 0;
+		background: var(--bg-secondary);
 	}
 
 	.description-card {
-		max-width: 680px;
+		max-width: 720px;
 		margin: 0 auto;
-		padding: var(--space-xl);
+		padding: var(--space-2xl);
+		background: var(--bg-card);
+		border-radius: var(--radius-lg);
+		box-shadow: 0 4px 24px rgba(0, 0, 0, 0.06);
 	}
 
 	.description-text {
-		font-size: var(--font-size-base);
-		line-height: 1.9;
+		font-size: var(--font-size-lg);
+		line-height: 2;
 		color: var(--text-primary);
 	}
 
 	.description-text :global(p) {
-		margin-bottom: var(--space-md);
+		margin-bottom: var(--space-lg);
+	}
+
+	.description-text :global(p:last-child) {
+		margin-bottom: 0;
 	}
 
 	.description-text :global(strong) {
-		color: var(--text-accent);
+		color: var(--accent-warm);
+		font-weight: 600;
 	}
 
-	/* 강점/약점 */
-	.traits-section {
-		padding: var(--space-xl) 0;
+	/* 강점/약점 - 16personalities 스타일 */
+	.strength-section {
+		padding: var(--space-3xl) 0;
+		background: var(--bg-primary);
+	}
+
+	.weakness-section {
+		padding: var(--space-3xl) 0;
 		background: var(--bg-secondary);
 	}
 
-	.traits-grid {
+	.section-header-big {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: var(--space-md);
+		margin-bottom: var(--space-2xl);
+	}
+
+	.section-icon-big {
+		font-size: 2rem;
+		color: var(--accent-warm);
+	}
+
+	.section-title-big {
+		font-size: var(--font-size-2xl);
+		font-weight: 700;
+		color: var(--text-primary);
+	}
+
+	.traits-grid-2col {
 		display: grid;
-		grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+		grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
 		gap: var(--space-lg);
 		max-width: 900px;
 		margin: 0 auto;
 	}
 
-	.trait-card {
+	.trait-card-new {
+		display: flex;
+		gap: var(--space-md);
 		padding: var(--space-lg);
+		background: var(--bg-card);
+		border-radius: var(--radius-lg);
+		box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
+		transition: transform 0.2s, box-shadow 0.2s;
 	}
 
-	.trait-header {
+	.trait-card-new:hover {
+		transform: translateY(-2px);
+		box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+	}
+
+	.trait-check {
+		width: 32px;
+		height: 32px;
 		display: flex;
 		align-items: center;
-		gap: var(--space-sm);
-		font-size: var(--font-size-lg);
-		font-weight: 600;
-		margin-bottom: var(--space-lg);
-		padding-bottom: var(--space-md);
-		border-bottom: 2px solid var(--border-light);
+		justify-content: center;
+		border-radius: var(--radius-sm);
+		font-weight: 700;
+		flex-shrink: 0;
 	}
 
-	.strengths-header {
+	.strength-check {
+		background: rgba(212, 165, 116, 0.15);
 		color: var(--accent-warm);
-		border-bottom-color: var(--accent-warm);
 	}
 
-	.weaknesses-header {
-		color: var(--text-secondary);
+	.weakness-check {
+		background: rgba(100, 100, 100, 0.1);
+		color: var(--text-muted);
 	}
 
-	.trait-icon {
-		font-size: var(--font-size-xl);
+	.trait-content {
+		flex: 1;
 	}
 
-	.trait-list {
-		list-style: none;
-		padding: 0;
-		margin: 0;
-		display: flex;
-		flex-direction: column;
-		gap: var(--space-md);
-	}
-
-	.trait-item {
-		display: flex;
-		flex-direction: column;
-		gap: var(--space-xs);
-		padding: var(--space-md);
-		background: var(--bg-secondary);
-		border-radius: var(--radius-md);
-	}
-
-	.trait-title {
+	.trait-title-new {
+		font-size: var(--font-size-base);
 		font-weight: 600;
 		color: var(--text-primary);
+		margin-bottom: var(--space-xs);
 	}
 
-	.trait-desc {
+	.trait-desc-new {
 		font-size: var(--font-size-sm);
 		color: var(--text-secondary);
 		line-height: 1.6;
 	}
 
-	/* 유료 유도 영역 */
+	/* 유료 유도 영역 - 16personalities 스타일 */
 	.paid-teaser {
-		padding: var(--space-2xl) 0;
+		padding: var(--space-3xl) 0;
+		background: linear-gradient(180deg, var(--bg-primary) 0%, var(--bg-accent) 100%);
 	}
 
 	.teaser-card {
-		max-width: 500px;
+		max-width: 560px;
 		margin: 0 auto;
-		padding: var(--space-2xl);
+		padding: var(--space-2xl) var(--space-xl);
 		text-align: center;
-		border: 2px solid var(--accent-warm);
+		background: var(--bg-card);
+		border-radius: var(--radius-xl);
+		box-shadow: 0 8px 40px rgba(0, 0, 0, 0.1);
 	}
 
 	.teaser-badge {
 		display: inline-block;
-		padding: var(--space-xs) var(--space-md);
+		padding: var(--space-sm) var(--space-lg);
 		background: var(--accent-warm);
 		color: white;
-		font-size: var(--font-size-xs);
-		font-weight: 600;
+		font-size: var(--font-size-sm);
+		font-weight: 700;
 		border-radius: var(--radius-full);
-		margin-bottom: var(--space-lg);
+		margin-bottom: var(--space-xl);
 	}
 
 	.teaser-title {
-		font-size: var(--font-size-xl);
+		font-size: var(--font-size-2xl);
+		font-weight: 700;
 		line-height: 1.4;
-		margin-bottom: var(--space-sm);
+		margin-bottom: var(--space-md);
+		color: var(--text-primary);
 	}
 
 	.teaser-subtitle {
 		color: var(--text-secondary);
-		margin-bottom: var(--space-xl);
+		margin-bottom: var(--space-2xl);
+		font-size: var(--font-size-base);
+		line-height: 1.6;
 	}
 
 	.preview-sections {
-		margin-bottom: var(--space-xl);
+		margin-bottom: var(--space-2xl);
 	}
 
 	.preview-item {
 		display: flex;
 		align-items: center;
 		gap: var(--space-md);
-		padding: var(--space-md);
+		padding: var(--space-md) var(--space-lg);
 		background: var(--bg-secondary);
 		border-radius: var(--radius-md);
 		margin-bottom: var(--space-sm);
+		transition: transform 0.2s;
+	}
+
+	.preview-item:hover {
+		transform: translateX(4px);
 	}
 
 	.preview-number {
-		width: 24px;
-		height: 24px;
+		width: 28px;
+		height: 28px;
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		background: var(--border-light);
+		background: var(--accent-warm);
+		color: white;
 		border-radius: 50%;
-		font-size: var(--font-size-xs);
-		font-weight: 600;
+		font-size: var(--font-size-sm);
+		font-weight: 700;
 	}
 
 	.preview-title {
 		flex: 1;
 		text-align: left;
-		color: var(--text-secondary);
+		color: var(--text-primary);
+		font-weight: 500;
 	}
 
 	.preview-lock {
-		font-size: var(--font-size-sm);
+		font-size: var(--font-size-base);
+		opacity: 0.5;
 	}
 
 	.teaser-cta {
 		margin-top: var(--space-xl);
+		padding-top: var(--space-xl);
+		border-top: 1px solid var(--border-light);
 	}
 
 	.price-display {
-		margin-bottom: var(--space-md);
+		margin-bottom: var(--space-lg);
 	}
 
 	.price-original {
 		text-decoration: line-through;
 		color: var(--text-muted);
 		margin-right: var(--space-sm);
+		font-size: var(--font-size-lg);
 	}
 
 	.price-current {
-		font-size: var(--font-size-xl);
-		font-weight: 700;
+		font-size: var(--font-size-2xl);
+		font-weight: 800;
 		color: var(--accent-warm);
 	}
 
 	.unlock-btn {
 		width: 100%;
-		padding: var(--space-lg);
+		padding: var(--space-lg) var(--space-xl);
 		font-size: var(--font-size-lg);
+		font-weight: 700;
+		border-radius: var(--radius-lg);
 	}
 
 	.social-proof {
-		margin-top: var(--space-md);
+		margin-top: var(--space-lg);
 		font-size: var(--font-size-sm);
 		color: var(--text-muted);
 	}
 
-	/* 유료 콘텐츠 */
+	/* 유료 콘텐츠 - 16personalities 스타일 */
 	.report-content {
-		padding: var(--space-xl) 0;
+		padding: var(--space-2xl) 0;
 	}
 
 	.part-group {
-		margin-bottom: var(--space-2xl);
+		margin-bottom: var(--space-3xl);
+	}
+
+	.part-group:nth-child(odd) {
+		background: var(--bg-secondary);
+		padding: var(--space-2xl) 0;
+		margin-left: calc(-50vw + 50%);
+		margin-right: calc(-50vw + 50%);
+		padding-left: calc(50vw - 50%);
+		padding-right: calc(50vw - 50%);
 	}
 
 	.part-header {
 		display: flex;
 		align-items: center;
+		justify-content: center;
 		gap: var(--space-md);
-		margin-bottom: var(--space-lg);
-		padding-bottom: var(--space-sm);
-		border-bottom: 2px solid var(--border-light);
+		margin-bottom: var(--space-2xl);
+		text-align: center;
 	}
 
 	.part-number {
-		font-size: var(--font-size-xs);
-		font-weight: 600;
+		font-size: var(--font-size-sm);
+		font-weight: 700;
 		text-transform: uppercase;
-		letter-spacing: 0.05em;
-		color: var(--accent-warm);
-		background: var(--bg-accent);
-		padding: var(--space-xs) var(--space-sm);
-		border-radius: var(--radius-sm);
+		letter-spacing: 0.1em;
+		color: white;
+		background: var(--accent-warm);
+		padding: var(--space-sm) var(--space-md);
+		border-radius: var(--radius-md);
 	}
 
 	.part-label {
-		font-size: var(--font-size-lg);
-		font-weight: 600;
+		font-size: var(--font-size-xl);
+		font-weight: 700;
 		color: var(--text-primary);
 	}
 
 	.report-section {
-		margin-bottom: var(--space-lg);
+		margin-bottom: var(--space-xl);
 		scroll-margin-top: 140px;
+		background: var(--bg-card);
+		border-radius: var(--radius-lg);
+		padding: var(--space-2xl);
+		box-shadow: 0 2px 16px rgba(0, 0, 0, 0.04);
+		max-width: 720px;
+		margin-left: auto;
+		margin-right: auto;
 	}
 
 	.section-header {
 		display: flex;
 		align-items: center;
 		gap: var(--space-md);
-		margin-bottom: var(--space-lg);
-		padding-bottom: var(--space-md);
-		border-bottom: 1px solid var(--border-light);
+		margin-bottom: var(--space-xl);
 	}
 
 	.section-emoji {
-		font-size: var(--font-size-xl);
+		width: 48px;
+		height: 48px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		font-size: 1.5rem;
+		background: var(--bg-accent);
+		border-radius: var(--radius-md);
 		color: var(--accent-warm);
 	}
 
 	.section-title {
-		font-size: var(--font-size-lg);
-		font-weight: 600;
+		font-size: var(--font-size-xl);
+		font-weight: 700;
+		color: var(--text-primary);
 	}
 
 	.section-content {
 		color: var(--text-primary);
-		line-height: 1.9;
+		line-height: 2;
+		font-size: var(--font-size-base);
 	}
 
 	.section-content :global(p) {
-		margin-bottom: var(--space-md);
+		margin-bottom: var(--space-lg);
 	}
 
 	.section-content :global(p:last-child) {
@@ -998,7 +1218,7 @@
 
 	.section-content :global(strong) {
 		font-weight: 600;
-		color: var(--text-accent);
+		color: var(--accent-warm);
 	}
 
 	.report-footer {
