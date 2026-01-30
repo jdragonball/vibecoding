@@ -32,10 +32,12 @@ export const POST: RequestHandler = async ({ request }) => {
 
 		const saju = calculateSaju(birthdate, birthHour, gender);
 
+		const startTime = Date.now();
 		const result = await claudeProvider.generatePaidReport(
 			{ name, gender, mbti, saju, concern: concern || '' },
 			freeContext as FreeReportResult
 		);
+		const generationTime = ((Date.now() - startTime) / 1000).toFixed(1);
 
 		// 섹션에 emoji, part 추가
 		const sectionsWithEmoji = result.sections.map((section) => {
@@ -65,7 +67,8 @@ export const POST: RequestHandler = async ({ request }) => {
 				report: {
 					oneLiner: result.oneLiner,
 					sections: sectionsWithEmoji
-				}
+				},
+				generationTime
 			}
 		});
 

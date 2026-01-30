@@ -10,6 +10,7 @@ export const POST: RequestHandler = async ({ request }) => {
 
 		const saju = calculateSaju(birthdate, birthHour, gender);
 
+		const startTime = Date.now();
 		const result = await geminiProvider.generateFreeReport({
 			name,
 			gender,
@@ -17,6 +18,7 @@ export const POST: RequestHandler = async ({ request }) => {
 			saju,
 			concern: concern || ''
 		});
+		const generationTime = ((Date.now() - startTime) / 1000).toFixed(1);
 
 		return json({
 			success: true,
@@ -32,7 +34,8 @@ export const POST: RequestHandler = async ({ request }) => {
 					dayMasterElement: saju.dayMasterElement,
 					dayMasterMeaning: saju.dayMasterMeaning
 				},
-				report: result
+				report: result,
+				generationTime
 			}
 		});
 

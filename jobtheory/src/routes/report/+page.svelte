@@ -56,6 +56,8 @@
 	let freeReport = $state<FreeReport | null>(null);
 	let paidSections = $state<Section[] | null>(null);
 	let paidOneLiner = $state<string | null>(null);
+	let freeGenerationTime = $state<string | null>(null);
+	let paidGenerationTime = $state<string | null>(null);
 
 	// 원본 요청 데이터 (유료 호출용)
 	let originalRequest = $state<Record<string, unknown> | null>(null);
@@ -95,6 +97,8 @@
 		freeReport: FreeReport;
 		paidSections?: Section[] | null;
 		paidOneLiner?: string | null;
+		freeGenerationTime?: string | null;
+		paidGenerationTime?: string | null;
 	}) {
 		if (!browser) return;
 
@@ -118,7 +122,9 @@
 					typeName: reportData.freeReport.typeName,
 					freeReport: reportData.freeReport,
 					paidSections: reportData.paidSections || null
-				}
+				},
+				freeGenerationTime: reportData.freeGenerationTime || null,
+				paidGenerationTime: reportData.paidGenerationTime || null
 			}
 		};
 
@@ -153,6 +159,8 @@
 					mbti = found.data.mbti;
 					saju = found.data.saju;
 					freeReport = found.data.report.freeReport;
+					freeGenerationTime = found.data.freeGenerationTime || null;
+					paidGenerationTime = found.data.paidGenerationTime || null;
 					if (found.data.report.paidSections) {
 						paidSections = found.data.report.paidSections;
 						paidOneLiner = found.data.report.oneLiner;
@@ -200,13 +208,15 @@
 			mbti = result.data.mbti;
 			saju = result.data.saju;
 			freeReport = result.data.report;
+			freeGenerationTime = result.data.generationTime || null;
 
 			// 무료 리포트 저장
 			saveReport({
 				name: result.data.name,
 				mbti: result.data.mbti,
 				saju: result.data.saju,
-				freeReport: result.data.report
+				freeReport: result.data.report,
+				freeGenerationTime: result.data.generationTime || null
 			});
 
 			sessionStorage.removeItem('reportRequest');
@@ -242,6 +252,7 @@
 
 			paidOneLiner = result.data.report.oneLiner;
 			paidSections = result.data.report.sections;
+			paidGenerationTime = result.data.generationTime || null;
 
 			// 유료 리포트 포함하여 저장 (업데이트)
 			if (saju && freeReport) {
@@ -251,7 +262,9 @@
 					saju,
 					freeReport,
 					paidSections: result.data.report.sections,
-					paidOneLiner: result.data.report.oneLiner
+					paidOneLiner: result.data.report.oneLiner,
+					freeGenerationTime,
+					paidGenerationTime: result.data.generationTime || null
 				});
 			}
 
@@ -548,6 +561,16 @@
 				<p class="text-muted text-sm text-center">
 					◎ 나 사용설명서 · 사주 × MBTI 기반 맞춤형 인생 가이드
 				</p>
+				{#if freeGenerationTime || paidGenerationTime}
+					<div class="generation-time">
+						{#if freeGenerationTime}
+							<span>무료 리포트 생성: {freeGenerationTime}초</span>
+						{/if}
+						{#if paidGenerationTime}
+							<span>유료 리포트 생성: {paidGenerationTime}초</span>
+						{/if}
+					</div>
+				{/if}
 			</div>
 		</footer>
 	{/if}
@@ -1224,6 +1247,22 @@
 	.report-footer {
 		padding: var(--space-2xl) 0;
 		border-top: 1px solid var(--border-light);
+	}
+
+	.generation-time {
+		display: flex;
+		justify-content: center;
+		gap: var(--space-lg);
+		margin-top: var(--space-md);
+		font-size: var(--font-size-xs);
+		color: var(--text-muted);
+		opacity: 0.7;
+	}
+
+	.generation-time span {
+		padding: var(--space-xs) var(--space-sm);
+		background: var(--bg-secondary);
+		border-radius: var(--radius-sm);
 	}
 
 	@keyframes spin {
